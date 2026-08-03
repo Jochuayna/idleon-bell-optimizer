@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A static prototype for the Legends of IdleOn Bell Optimizer.">
+  <title>Bell Optimizer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false"><path fill="#6e351f" d="M20 49h24l-3 7H23z"/><path fill="#b85e2f" d="M16 43h32l-5 8H21z"/><path fill="#f1a42b" d="M19 42c3-5 5-12 5-20 0-5 3-9 8-9s8 4 8 9c0 8 2 15 5 20z"/><path fill="#ffd066" d="M27 17c1-3 3-5 6-5l-1 28H22c3-7 5-14 5-23z"/><path fill="#885a8f" d="M27 11c0-3 2-6 5-6s5 3 5 6z"/><path fill="#f1a42b" d="M27 55h10c-1 4-3 6-5 6s-4-2-5-6z"/></svg></div>
+      <div>
+        <p class="eyebrow">Idleon Bell planning and progress tool</p>
+        <h1>Bell Optimizer</h1>
+        <p class="intro">Optimize your Bell rates, evaluate your current run, and track exactly how your account improves.</p>
+      </div>
+      <span class="prototype-badge">Runs locally</span>
+    </header>
+
+    <main>
+      <section class="panel input-panel flow-step" aria-labelledby="data-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-number">Step 1</p>
+            <div class="import-title-row">
+              <h2 id="data-title">Import your save</h2>
+              <details class="fresh-run-help">
+                <summary aria-label="Why this fresh-run method is useful"><span aria-hidden="true">i</span> Why?</summary>
+                <div class="fresh-run-popover">
+                  <strong>Best way to check a fresh run</strong>
+                  <p>For the clearest early evaluation, reset the Bell, use one 2-hour Lantern, then import your new JSON. This gives the tool enough early ring results to estimate whether the run is starting strong or weak. It is still an early estimate, not a guarantee of the final run.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+          <p>Your save is processed locally and is not uploaded.</p>
+        </div>
+
+        <div class="import-grid compact-import"><div class="upload-box"><label class="upload-label" for="json-file"><strong>Choose IdleOn Save</strong></label><input id="json-file" type="file" accept=".json,application/json"><span id="file-name" class="file-name">No file selected</span></div><details class="paste-disclosure"><summary>Paste JSON instead</summary><label class="paste-box" for="json-paste"><span>Idleon save JSON</span><textarea id="json-paste" rows="5" placeholder="Paste your IdleOn JSON export here..."></textarea></label></details></div>
+        <div class="import-action-row">
+          <button id="import-bell-levels" type="button" class="primary-action">Import IdleOn Save</button>
+          <p id="import-status" class="import-status" role="status" aria-live="polite">Choose a file or paste your save, then import it.</p>
+        </div>
+        <p class="fresh-run-tip"><strong>Tip:</strong> Reset, use one 2-hour Lantern, then import your save for a useful early-run check.</p>
+        <div id="import-summary" class="import-summary" hidden><div><span>Current Bell ring</span><strong id="summary-current-ring">&mdash;</strong></div><div><span>Bell rewards unlocked</span><strong id="summary-rewards-unlocked">&mdash;</strong></div><div><span>Current goal</span><strong id="summary-current-goal">Fountain</strong></div></div>
+        <section id="fresh-run-planner" class="fresh-run-planner" aria-labelledby="fresh-run-planner-title" hidden>
+          <div class="section-heading"><div><p class="section-number">Fresh-run planner</p><h2 id="fresh-run-planner-title">Fresh-run odds</h2></div><p>Resource requirements for independent renewed runs—not advice to reset your current run.</p></div>
+          <div class="planner-input-row"><label for="fresh-run-target"><span id="fresh-run-target-label">Fresh-run target level</span><input id="fresh-run-target" type="number" min="0" step="1" placeholder="e.g. 7500"></label><div><span>Checkpoint</span><strong id="fresh-run-checkpoint">One 2-hour Lantern</strong></div><button id="calculate-fresh-run-plan" type="button">Calculate Fresh-Run Odds</button></div>
+          <p id="fresh-run-planner-status" class="import-status" role="status" aria-live="polite">Enter a target after importing a save with a complete automatic Bell Ring rate.</p>
+          <div id="fresh-run-planner-results" hidden>
+            <div id="planner-practicality-warning" class="practicality-warning" hidden><strong>NOT REALISTIC AT THIS CHECKPOINT</strong><p id="planner-practicality-message"></p></div>
+            <div class="fresh-run-headline"><div><span>Checkpoint</span><strong id="planner-checkpoint-ring">&mdash;</strong></div><div><span>Chance per fresh run</span><strong id="planner-per-run-chance">&mdash;</strong></div><div><span>Average attempts</span><strong id="planner-average-runs">&mdash;</strong></div><div><span>Affordable now</span><strong id="planner-affordable-runs">&mdash;</strong></div></div>
+            <div class="confidence-table" role="table" aria-label="Fresh-run confidence requirements"><div class="confidence-row confidence-header" role="row"><strong>Confidence</strong><strong>Attempts</strong><strong>Renewal currency</strong><strong>Wait</strong></div><div id="confidence-table-body"></div></div>
+            <p class="muted">Each attempt uses one renewal and one 2-hour Lantern. Average attempts are a statistical average, not a guarantee.</p><p class="muted">Lantern inventory is not imported yet. Each renewed Bell run is treated as an independent random attempt using the same imported mechanics and unchanged Bell EXP/hour.</p>
+          </div>
+        </section>
+      </section>
+
+      <section id="bell-rate-section" class="panel bell-rate-section" aria-labelledby="bell-rate-title">
+        <div class="section-heading"><div><p class="section-number">Imported account</p><h2 id="bell-rate-title">Bell Rate</h2></div><p>Verified account factors and Bell-focused upgrade paths.</p></div>
+        <div class="bell-rate-tabs" role="tablist" aria-label="Bell Rate views"><button id="bell-rate-breakdown-tab" type="button" role="tab" aria-selected="true" aria-controls="bell-rate-breakdown-panel">Rate Breakdown</button><button id="bell-rate-upgrades-tab" type="button" role="tab" aria-selected="false" aria-controls="bell-rate-upgrades-panel">Upgrade Paths</button><button id="bell-rate-history-tab" type="button" role="tab" aria-selected="false" aria-controls="bell-rate-history-panel">Progress History</button></div>
+        <div id="bell-rate-breakdown-panel" role="tabpanel" aria-labelledby="bell-rate-breakdown-tab">
+          <div class="bell-rate-hero"><span>Current Bell Rate</span><strong id="normal-bell-rate">—</strong><small id="normal-bell-rate-exact" class="visually-hidden"></small></div>
+          <div class="rate-stack"><div class="rate-stack-heading"><strong>Bell Rate Breakdown</strong><strong id="normal-rate-total">—</strong></div><div class="rate-factor"><span>Base Bell Rate</span><strong id="normal-rate-base">10 EXP/hr</strong></div>
+            <details class="rate-factor-details"><summary><span>Monument</span><strong id="normal-rate-monument">—</strong></summary><div id="normal-monument-details" class="rate-detail-grid"></div></details>
+            <details class="rate-factor-details"><summary><span>Measurement — Monster Kills / Death Note</span><strong id="normal-rate-measurement">—</strong></summary><div id="normal-measurement-details" class="rate-detail-grid"></div></details>
+            <details class="rate-factor-details"><summary><span>Bell Improvement Methods</span><strong id="normal-rate-methods">—</strong></summary><div id="normal-method-details" class="rate-detail-grid"></div></details>
+            <details class="rate-factor-details"><summary><span>Big Beef Rock Jar</span><strong id="normal-rate-jar11">—</strong></summary><div id="normal-jar11-details" class="rate-detail-grid"></div></details>
+            <details class="rate-factor-details"><summary><span>Twisted Rupie Jar</span><strong id="normal-rate-jar36">—</strong></summary><div id="normal-jar36-details" class="rate-detail-grid"></div></details>
+          </div><p id="normal-rate-status" class="muted"></p>
+        </div>
+        <div id="bell-rate-upgrades-panel" role="tabpanel" aria-labelledby="bell-rate-upgrades-tab" hidden>
+          <p id="normal-upgrade-paths-status" class="import-status">Upgrade Paths will load after import.</p>
+          <div class="bell-stat-filter" role="group" aria-label="Bell stat"><button type="button" class="bell-stat-filter-button selected" data-bell-stat="Bell Ring" aria-pressed="true">Bell Ring</button><button type="button" class="bell-stat-filter-button" data-bell-stat="Bell Ping" aria-pressed="false">Bell Ping</button><button type="button" class="bell-stat-filter-button" data-bell-stat="Bell Clean" aria-pressed="false">Bell Clean</button></div>
+          <section id="primary-rate-recommendation" class="upgrade-path-block primary-rate-recommendation compact-rate-recommendation"><span class="recommendation-rank">#1</span><div><strong id="primary-rate-recommendation-title">Best Bell Ring upgrade</strong><p id="primary-rate-recommendation-main"></p><p id="primary-rate-recommendation-rate"></p><small id="primary-rate-recommendation-cost"></small></div></section>
+          <details id="normal-multi-upgrade-plans" class="upgrade-path-block"><summary><strong>View multi-upgrade plans</strong></summary><p class="objective-boundary">Ring-only recommendation; Ping and Clean are separate meters.</p><h3>Practical Bell Ring plan</h3><div id="normal-practical-plan" class="multi-upgrade-plan-card"></div><h3>Bell-only maximum</h3><div id="normal-maximum-plan" class="multi-upgrade-plan-card"></div><p class="warning-text">Bell-only maximum. This does not account for other uses of these resources.</p><p id="normal-search-warning" class="muted"></p></details>
+          <p id="single-candidate-note" class="muted" hidden></p><section id="normal-candidate-section" class="upgrade-path-block"><div class="upgrade-path-heading"><h3>Upgrade candidates</h3><label><input id="normal-candidate-affordable-first" type="checkbox"> Affordable first</label></div><div class="candidate-table-wrap"><table class="candidate-table normal-candidate-table"><thead><tr><th>Upgrade</th><th>Effect</th><th>Level</th><th>Cost</th><th>Owned</th><th>Status</th><th>Rate gained</th><th>New rate</th></tr></thead><tbody id="normal-candidate-body"></tbody></table></div></section>
+          <section class="upgrade-path-block"><h3>5. Progression opportunities</h3><h4>Death Note targets</h4><div id="normal-progression-opportunities"></div><p class="muted">These are progression goals, not purchases.</p></section>
+          <section class="upgrade-path-block"><h3>6. RNG-dependent opportunities</h3><div id="normal-rng-opportunities"></div><p class="muted">These cannot be targeted through a guaranteed direct purchase.</p></section>
+          <section class="upgrade-path-block"><h3>7. Capped sources</h3><div id="normal-capped-sources"></div><p class="muted">Capped sources are not included in upgrade recommendations.</p></section>
+        </div>
+        <div id="bell-rate-history-panel" role="tabpanel" aria-labelledby="bell-rate-history-tab" hidden>
+          <p class="privacy-notice">Bell history is stored only in this browser. Full Idleon save files are processed locally and are not retained or uploaded. GitHub does not receive snapshots, browser profiles have separate history, and clearing site data can remove it. Export a backup before clearing browser data.</p>
+          <div class="method-overview-grid"><div><span>Storage</span><strong id="bell-history-storage-state">Checking local history…</strong></div><div><span>Capacity</span><strong id="bell-history-count">Stored snapshots: 0 / 100</strong></div></div>
+          <p id="bell-history-protocol" class="muted"></p><p id="bell-history-status" class="import-status" role="status">Progress History is local and never saves automatically.</p>
+          <section class="upgrade-path-block"><h3>Save current Bell progress</h3><label><span>Optional label</span><input id="bell-history-label" type="text" maxlength="120" placeholder="Before Bell reset"></label><button id="save-current-snapshot" type="button" disabled>Save Current Snapshot</button><label class="secondary-button"><span>Import Past Saves</span><input id="history-past-files" type="file" accept=".json,application/json" multiple hidden></label></section>
+          <section class="upgrade-path-block history-comparison-card"><h3>Since Last Snapshot</h3><div id="since-last-snapshot" class="history-comparison-output empty-state">Import a current save to compare it with local history.</div></section>
+          <section class="upgrade-path-block"><h3>Saved snapshots</h3><div class="candidate-table-wrap"><table class="candidate-table history-table"><thead><tr><th>Date</th><th>Label</th><th>Bell Ring</th><th>Bell Ping</th><th>Bell Clean</th><th>Ring change</th><th>Actions</th></tr></thead><tbody id="bell-history-body"></tbody></table></div><div id="bell-history-details" class="history-details empty-state"></div></section>
+          <section class="upgrade-path-block"><h3>Compare two snapshots</h3><div class="simple-target-grid"><label><span>Earlier snapshot</span><select id="history-earlier"></select></label><label><span>Later snapshot</span><select id="history-later"></select></label></div><button id="history-compare" type="button" disabled>Compare Snapshots</button><div id="history-comparison-output" class="history-comparison-output empty-state"></div></section>
+          <section class="upgrade-path-block history-utility-panel"><h3>Backup and privacy</h3><button id="export-bell-history" type="button" class="secondary-button">Export History</button><label class="secondary-button"><span>Restore History</span><input id="restore-bell-history-file" type="file" accept=".json,application/json" hidden></label><button id="clear-bell-history" type="button" class="destructive-button">Delete All History</button><details><summary>Local storage details</summary><p class="muted">History does not sync to another browser or device. IndexedDB persistence under file:// varies by browser; GitHub Pages or localhost is more reliable.</p></details></section>
+        </div>
+      </section>
+
+      <section class="panel input-panel flow-step" aria-labelledby="goal-title">
+        <div class="section-heading compact-heading"><div><p class="section-number">Step 2</p><h2 id="goal-title">Choose this run’s priority</h2></div></div>
+        <div class="goal-presets" role="group" aria-label="Bell goal">
+          <button type="button" class="goal-preset" data-goal="Bucket Fill Rate" data-reward-index="0" aria-pressed="false"><strong>Bucket Fill Rate</strong></button>
+          <button type="button" class="goal-preset" data-goal="All Villager EXP" data-reward-index="1" aria-pressed="false"><strong>All Villager EXP</strong></button>
+          <button type="button" class="goal-preset" data-goal="Harp Note Gains" data-reward-index="2" aria-pressed="false"><strong>Harp Note Gains</strong></button>
+          <button type="button" class="goal-preset" data-goal="Daily Lamp Wishes" data-reward-index="3" aria-pressed="false"><strong>Daily Lamp Wishes</strong></button>
+          <button type="button" class="goal-preset" data-goal="Extra Rupie Chance" data-reward-index="4" aria-pressed="false"><strong>Extra Rupie Chance</strong></button>
+          <button type="button" class="goal-preset" data-goal="Double Torch Chance" data-reward-index="5" aria-pressed="false"><strong>Double Torch Chance</strong></button>
+          <button type="button" class="goal-preset selected" data-goal="Coins From Fountain" data-reward-index="6" aria-pressed="true"><strong>Coins From Fountain</strong></button>
+          <button type="button" class="goal-preset unavailable" data-goal="Balanced" aria-pressed="false" disabled><strong>Balanced</strong><span>Coming next: multi-reward objectives require separate targets and scoring rules.</span></button>
+          <button type="button" class="goal-preset unavailable" data-goal="Custom" aria-pressed="false" disabled><strong>Custom</strong><span>Coming next: multi-reward objectives require separate targets and scoring rules.</span></button>
+        </div>
+      </section>
+
+      <details id="current-run-distribution" class="panel current-run-distribution" hidden>
+        <summary id="current-run-distribution-title">View current run levels</summary><div class="current-run-levels-content"><h2>Current run levels</h2>
+        <div class="current-distribution-table"><div class="current-distribution-row current-distribution-header"><strong>Reward</strong><strong>Current level</strong><strong>Share of this run</strong></div><div id="current-distribution-table-body"></div></div>
+        <p class="distribution-odds-note">Current levels show where this run’s rewards have landed so far. Future rolls still select each unlocked reward equally.</p>
+        <p id="distribution-future-chance" class="muted">Future chance per reward: unavailable until import.</p>
+        </div></details>
+
+      <section class="panel input-panel flow-step" aria-labelledby="simple-goal-title">
+        <div class="section-heading compact-heading"><div><p class="section-number">Step 3</p><h2 id="simple-goal-title">Set your target</h2></div><p id="selected-goal-description">Coins From Fountain target</p></div>
+        <div class="simple-target-grid"><label><span>I want at least</span><input id="simple-target-level" type="number" min="0" step="1" placeholder="e.g. 7500"></label><label hidden><span>By ring (advanced evaluator only)</span><input id="simple-target-ring" type="number" min="0" step="1"></label><button id="check-my-run" type="button" class="check-run-button">Check My Run</button></div>
+        <p id="simple-evaluator-status" class="import-status" role="status" aria-live="polite">Import a save and set a goal to check your run.</p>
+      </section>
+
+      <section id="main-result-card" class="panel result-card" aria-labelledby="main-result-quality">
+        <p class="section-number">Step 4 / Your result</p>
+        <div class="result-hero"><div><h2 id="main-result-quality">SET A GOAL</h2><p id="decision-objective-line" class="decision-objective-line">Choose an objective and checkpoint.</p><p id="main-result-action">Set a goal to evaluate this run.</p></div><span id="main-result-type" class="result-type">Waiting</span></div>
+        <p id="decision-outlook-reason" class="decision-outlook-reason">Set your outlook in Advanced Details.</p>
+        <div class="result-summary-grid"><div><span>Chance to hit your goal</span><strong id="main-result-chance">&mdash;</strong></div><div><span id="main-result-expected-label">Expected after 48 hours</span><strong id="main-result-expected">&mdash;</strong></div><div><span id="main-result-range-label">Likely range after 48 hours</span><strong id="main-result-range">&mdash;</strong></div><div><span>High-end likely result</span><strong id="main-result-high-end">&mdash;</strong></div><div><span>Goal</span><strong id="main-result-goal">&mdash;</strong></div></div>
+        <p id="main-result-difference" class="result-difference" data-result-reason="high-end-versus-goal">Import your save to compare the likely high end with your goal.</p>
+        <p id="lantern-strategy-note" class="muted">Lantern strategy: use one Lantern immediately after resetting. A second Lantern on the same run usually gives very little value because later rings become much slower.</p>
+        <div id="decision-summary" hidden><div class="decision-chances"><div><span>Current run chance</span><strong id="decision-current-chance">&mdash;</strong></div><div><span>Fresh reset chance</span><strong id="decision-reset-chance">&mdash;</strong></div></div><p class="high-end-result">High-end current result: <strong id="decision-current-high-end">&mdash;</strong></p><p id="decision-resource-text" class="muted"></p></div>
+      </section>
+
+      <section id="remaining-opportunities-card" class="panel remaining-opportunities-card" hidden aria-labelledby="remaining-opportunities-title">
+        <h2 id="remaining-opportunities-title">What this result means</h2>
+        <div id="remaining-opportunities-copy"></div>
+        <p id="remaining-opportunities-note" class="muted"></p>
+      </section>
+
+      <details id="advanced-details" class="panel advanced-details" data-collapsed-default="true">
+        <summary><strong>Show Advanced Details</strong><span class="summary-hint">Manual controls, imported values, and full statistics</span></summary>
+        <div class="advanced-content">
+        <div class="section-heading">
+          <div><p class="section-number">Advanced</p><h2>Manual controls</h2></div>
+          <p>These values are imported automatically. Change them only for controlled testing.</p>
+        </div>
+        <form id="optimizer-form">
+          <label class="goal-label" for="optimization-goal"><span>Optimization goal</span>
+            <select id="optimization-goal" name="optimizationGoal">
+              <option>Fountain currency</option><option>Villager EXP</option><option>Bucket fill</option>
+              <option>Harp progression</option><option>Rupie gain</option><option>Lamp wishes</option>
+              <option>Torch chance</option><option>Equal Bell-level spread</option>
+              <option>Equal practical-value spread</option><option value="custom">Custom weights</option>
+            </select>
+          </label>
+
+          <fieldset id="custom-weights" class="custom-weights" hidden>
+            <legend>Custom Reward Weights</legend>
+            <p class="field-help">Give each reward a relative importance. These values are not used yet.</p>
+            <div class="field-grid rewards-grid">
+              <label><span>Bucket Fill Rate weight</span><input type="number" min="0" step="any" placeholder="1.0" name="weight1"></label>
+              <label><span>All Villager EXP weight</span><input type="number" min="0" step="any" placeholder="1.0" name="weight2"></label>
+              <label><span>Harp Note Gains weight</span><input type="number" min="0" step="any" placeholder="1.0" name="weight3"></label>
+              <label><span>Daily Lamp Wishes weight</span><input type="number" min="0" step="any" placeholder="1.0" name="weight4"></label>
+              <label><span>Extra Rupie Chance weight</span><input type="number" min="0" step="any" placeholder="1.0" name="weight5"></label>
+              <label><span>Double Torch Chance weight</span><input type="number" min="0" step="any" placeholder="1.0" name="weight6"></label>
+              <label><span>Coins From Fountain weight</span><input type="number" min="0" step="any" placeholder="1.0" name="weight7"></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Manual Bell Reward Levels <span class="optional">Fallback</span></legend>
+            <p class="field-help">Enter levels manually when you are not using an export.</p>
+            <div class="field-grid rewards-grid">
+              <label><span>Bucket Fill Rate</span><input type="number" min="0" step="1" placeholder="e.g. 12" name="reward1"></label>
+              <label><span>All Villager EXP</span><input type="number" min="0" step="1" placeholder="e.g. 8" name="reward2"></label>
+              <label><span>Harp Note Gains</span><input type="number" min="0" step="1" placeholder="e.g. 15" name="reward3"></label>
+              <label><span>Daily Lamp Wishes</span><input type="number" min="0" step="1" placeholder="e.g. 4" name="reward4"></label>
+              <label><span>Extra Rupie Chance</span><input type="number" min="0" step="1" placeholder="e.g. 9" name="reward5"></label>
+              <label><span>Double Torch Chance</span><input type="number" min="0" step="1" placeholder="e.g. 6" name="reward6"></label>
+              <label><span>Coins From Fountain</span><input type="number" min="0" step="1" placeholder="e.g. 3" name="reward7"></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Progress &amp; Rates</legend>
+            <div class="field-grid">
+              <label><span>Current ring number</span><input type="number" min="0" step="1" placeholder="e.g. 247" name="currentRing"></label>
+              <label><span>Bell rings per hour</span><input type="number" min="0" step="any" placeholder="e.g. 18.5" name="ringsPerHour"><small class="input-note">This will eventually be imported or calculated from your save.</small></label>
+              <label><span>Major bonus every 20th ring</span><input type="number" min="0" step="any" value="940" name="majorBonus"><small class="input-note">Imported as Bolaia Bell study level × 20; editable for manual testing.</small></label>
+              <label><span>Minimum normal ring gain</span><input type="number" min="0" step="any" value="1" name="minimumNormalGain"><small class="input-note">Calculated from imported upgrade ownership; editable for testing.</small></label>
+              <label><span>Maximum normal ring gain</span><input type="number" min="0" step="any" value="3" name="maximumNormalGain"><small class="input-note">Includes the upgrade-60 special branch when owned.</small></label>
+              <label class="switch-field"><span>Double enabled</span><input type="checkbox" name="doubleEnabled"><small class="input-note">Enable manually when Bell upgrade 86 is owned.</small></label>
+              <label><span>Double chance (%)</span><input type="number" min="0" max="100" step="any" value="25" name="doubleLevelChance"></label>
+              <label><span>Caverns owned</span><input type="number" min="0" step="1" value="16" name="cavernsOwned"><small class="input-note">Imported as min(18, floor(first villager level)); editable for testing.</small></label>
+              <label hidden><span>Lantern hours</span><input type="number" min="0" step="any" name="lanternHours"></label>
+              <label hidden><span>Reset count</span><input type="number" min="0" step="1" name="resetCount"></label>
+              <label hidden><span>Reset generation per hour</span><input type="number" min="0" step="any" name="resetsPerHour"></label>
+            </div>
+          </fieldset>
+        </form>
+
+        <section class="advanced-section renewal-details" aria-labelledby="renewal-details-title">
+          <div class="output-heading"><div><p class="section-number">Imported resource</p><h2 id="renewal-details-title">Bell Renewals</h2></div></div>
+          <div class="renewal-summary-grid">
+            <div><span>Renewal currency</span><strong id="renewal-current-currency">&mdash;</strong></div>
+            <div><span>Renewal currency per hour</span><strong id="renewal-currency-rate">&mdash;</strong></div>
+            <div><span>Renewals available now</span><strong id="renewals-available-now">&mdash;</strong></div>
+            <div><span>Lifetime renewals</span><strong id="lifetime-renewals">&mdash;</strong></div>
+            <div><span>Cost per renewal</span><strong id="renewal-cost">25</strong></div>
+          </div>
+          <p class="muted">These are imported account values only. No reset recommendation or Lantern plan is calculated.</p>
+        </section>
+
+        <section class="advanced-section ringing-progress" aria-labelledby="ringing-progress-title">
+          <div class="output-heading"><div><p class="section-number">Imported progress</p><h2 id="ringing-progress-title">Ringing the Bell</h2></div></div>
+          <div class="ringing-progress-grid">
+            <div><span>Current ring</span><strong id="ringing-current-ring">&mdash;</strong></div>
+            <div><span>Ring progress</span><strong id="ringing-progress-values">&mdash;</strong></div>
+            <div><span>Progress to next ring</span><strong id="ringing-progress-percent">&mdash;</strong></div>
+            <div><span>Bell Ring EXP per hour</span><strong id="advanced-auto-rate">Automatically reconstructed after import</strong></div>
+          </div>
+          <div class="ring-progress-track" role="progressbar" aria-label="Progress to next Bell ring" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="ring-progress-fill"></span></div>
+          <p class="muted">The progress requirement is calculated from the imported raw zero-based ring index. Time estimates use only the Bell EXP/hour you manually enter above.</p>
+        </section>
+
+        <details class="method-details">
+          <summary><strong>Bell Improvement Methods</strong><span class="summary-hint">Verified method contribution to Ringing</span></summary>
+          <div class="method-details-content">
+            <div class="method-overview-grid">
+              <div><span>Total method levels</span><strong id="total-method-levels">&mdash;</strong></div>
+              <div><span>Upgrade 45 owned</span><strong id="upgrade-45-method-owned">&mdash;</strong></div>
+              <div><span>Upgrade 45 scaling multiplier</span><strong id="upgrade-45-method-multiplier">&mdash;</strong></div>
+              <div><span>Combined Ringing method multiplier</span><strong id="ringing-method-multiplier">&mdash;</strong></div>
+            </div>
+            <div id="method-quantity-list" class="method-quantity-list"></div>
+            <p class="muted">Verified Bell Method portion only. Monument and Measurement dependencies are not fully mapped, so partial factors are never displayed as final Bell EXP per hour.</p>
+          </div>
+        </details>
+        <details class="method-details" id="advanced-bell-exp-preview">
+          <summary><strong>Bell EXP progression preview</strong><span class="summary-hint">Exact progress values and constant-rate assumptions</span></summary>
+          <div class="method-details-content"><div class="method-overview-grid"><div><span>Time to next ring</span><strong id="advanced-time-to-next-ring">&mdash;</strong></div><div><span>Remaining EXP</span><strong id="advanced-remaining-exp">&mdash;</strong></div><div><span>Next Lantern ending ring</span><strong id="advanced-lantern-ending-ring">&mdash;</strong></div><div><span>Rings completed</span><strong id="advanced-lantern-rings">&mdash;</strong></div><div><span>Major payouts crossed</span><strong id="advanced-lantern-majors">&mdash;</strong></div><div><span>Ending progress</span><strong id="advanced-lantern-progress">&mdash;</strong></div><div><span>Exact ending Ringing EXP</span><strong id="advanced-lantern-ending-exp">&mdash;</strong></div><div><span>Exact next-ring requirement</span><strong id="advanced-lantern-requirement">&mdash;</strong></div></div><p class="muted">Uses the automatically reconstructed Bell Ring EXP/hour. Ring progress and ring index are imported; the requirement formula is verified.</p></div>
+        </details>
+        <details class="method-details" id="continue-fresh-details"><summary><strong>View Continue vs Fresh Reset details</strong><span class="summary-hint">Full projected comparison</span></summary><div class="method-details-content"><div class="path-comparison"><div class="path-row path-header"><strong></strong><strong>Continue</strong><strong>Fresh reset</strong></div><div class="path-row"><span>Ending ring</span><strong id="decision-continue-ring">&mdash;</strong><strong id="decision-reset-ring">&mdash;</strong></div><div class="path-row"><span>Goal chance</span><strong id="decision-continue-probability">&mdash;</strong><strong id="decision-reset-probability">&mdash;</strong></div><div class="path-row"><span>Expected finish</span><strong id="decision-continue-expected">&mdash;</strong><strong id="decision-reset-expected">&mdash;</strong></div><div class="path-row"><span>Likely range</span><strong id="decision-continue-range">&mdash;</strong><strong id="decision-reset-range">&mdash;</strong></div></div></div></details>
+        <details class="method-details">
+          <summary><strong>Fresh reset + one 2-hour Lantern</strong><span class="summary-hint">Uses the reconstructed Bell Ring rate</span></summary>
+          <div class="method-details-content"><label class="advanced-duration"><span>Custom Lantern duration (hours)</span><input id="planner-lantern-duration" type="number" min="0.01" step="any" value="2"></label><div class="method-overview-grid"><div><span>Ending raw ring</span><strong id="fresh-preview-raw-ring">&mdash;</strong></div><div><span>Ending human ring</span><strong id="fresh-preview-ring">&mdash;</strong></div><div><span>Rings completed</span><strong id="fresh-preview-rings">&mdash;</strong></div><div><span>Major payouts reached</span><strong id="fresh-preview-majors">&mdash;</strong></div><div><span>Per-run probability</span><strong id="advanced-fresh-probability">&mdash;</strong></div><div><span>Calculation method</span><strong id="advanced-fresh-method">&mdash;</strong></div><div><span>Affordable attempts now</span><strong id="advanced-affordable-attempts">&mdash;</strong></div><div><span>Renewal currency / rate</span><strong id="advanced-planner-currency">&mdash;</strong></div><div><span>Cost per attempt</span><strong id="advanced-planner-cost">25</strong></div></div><p class="muted">Cumulative chance = 1 − (1 − per-run chance)<sup>attempts</sup>. Required renewal currency = attempts × 25; missing currency = max(0, required − current currency). Starts from raw ring index 0 and zero Ringing EXP. This is resource planning, not reset advice.</p></div>
+        </details>
+        <details class="method-details">
+          <summary><strong>Current run versus fresh reset</strong><span class="summary-hint">Full checkpoint comparison</span></summary>
+          <div class="method-details-content"><div class="outlook-control"><label for="run-outlook-select"><span>Run outlook</span><select id="run-outlook-select"><option value="24">24 hours</option><option value="48" selected>48 hours</option><option value="72">72 hours</option><option value="custom">Custom hours</option></select></label><label id="custom-outlook-field" for="custom-outlook-hours" hidden><span>Custom outlook hours</span><input id="custom-outlook-hours" type="number" min="0.01" step="any" value="48"></label></div><div class="method-overview-grid"><div><span>Outlook duration</span><strong id="advanced-decision-duration">&mdash;</strong></div><div><span>Probability difference</span><strong id="advanced-decision-difference">&mdash;</strong></div><div><span>Continue method</span><strong id="advanced-continue-method">&mdash;</strong></div><div><span>Reset method</span><strong id="advanced-reset-method">&mdash;</strong></div><div><span>Continue Bell rolls</span><strong id="advanced-continue-rolls">&mdash;</strong></div><div><span>Fresh Bell rolls</span><strong id="advanced-reset-rolls">&mdash;</strong></div><div><span>Continue major payouts</span><strong id="advanced-continue-majors">&mdash;</strong></div><div><span>Fresh major payouts</span><strong id="advanced-reset-majors">&mdash;</strong></div><div><span>Renewals affordable</span><strong id="advanced-decision-affordable">&mdash;</strong></div><div><span>Time until one renewal</span><strong id="advanced-time-one-renewal">&mdash;</strong></div></div><p id="advanced-decision-percentiles" class="muted">Run a comparison to see percentile details.</p><p class="muted">Fresh strategy: renew now, use one 2-hour Lantern, then allow passive progress through the rest of the selected outlook. The entered Bell EXP/hour is held constant, so this equals advancing the fresh run for the full outlook. Lantern inventory is not known.</p><p class="muted">The target probability is the primary decision metric. Expected finish and percentiles provide context only.</p></div>
+        </details>
+        <details class="method-details">
+          <summary><strong>Why the first Lantern matters</strong><span class="summary-hint">First-Lantern slowdown and full checkpoint value</span></summary>
+          <div class="method-details-content"><div class="method-overview-grid"><div><span>Current gain per hour</span><strong id="advanced-gain-current-hourly">&mdash;</strong></div><div><span>Current-window rings</span><strong id="advanced-gain-current-rings">&mdash;</strong></div><div><span>Current-window major payouts</span><strong id="advanced-gain-current-majors">&mdash;</strong></div><div><span>First 15-minute cumulative share</span><strong id="advanced-first-lantern-share">&mdash;</strong></div></div><p id="advanced-first-lantern-message" class="muted">Analyze a run to see how much of the first Lantern's value arrives early.</p><details class="pace-subdetails"><summary><strong>First-Lantern 15-minute subwindows</strong><span>Smoothed within-Lantern pace</span></summary><div class="pace-subcontent"><div class="pace-window-table"><div class="pace-subwindow-row pace-window-header"><strong>Time</strong><strong>Rings</strong><strong>Major payouts</strong><strong>Expected gain</strong><strong>Gain/hour</strong><strong>Smoothed pace</strong><strong>Cumulative share</strong></div><div id="pace-subwindow-body"></div></div><div id="within-lantern-milestones" class="pace-milestones"></div></div></details><details class="pace-subdetails"><summary><strong>Consecutive full checkpoint windows</strong><span>Lantern-to-Lantern value</span></summary><div class="pace-subcontent"><div class="pace-window-table"><div class="pace-window-row pace-window-header"><strong>Time</strong><strong>Rings</strong><strong>Major payouts</strong><strong>Expected gain</strong><strong>Gain/hour</strong><strong>Value vs first</strong></div><div id="pace-window-body"></div></div></div></details><p class="muted">A Lantern applies the full checkpoint period, so within-Lantern slowdown is informational. Expected finish is a projected total; expected gain is what one window adds. Major payout timing can create temporary spikes, not a permanent recovery in efficiency.</p></div>
+        </details>
+        <details class="method-details" id="remaining-opportunities-details">
+          <summary><strong>Remaining Bell opportunities</strong><span class="summary-hint">Three chained 24-hour progression windows</span></summary>
+          <div class="method-details-content"><div class="opportunities-table"><div class="opportunities-row opportunities-header"><strong>Time period</strong><strong>Start ring</strong><strong>End ring</strong><strong>Bell rolls</strong><strong>Major payouts</strong><strong>Expected reward gain</strong></div><div id="remaining-opportunities-table-body"></div></div><p class="muted">Each period begins from the exact ending ring and Ringing EXP of the previous period. The 48–72 hour pace is a later-day snapshot, not a permanent rate.</p></div>
+        </details>
+        <details class="method-details" id="current-distribution-details">
+          <summary><strong>Current run distribution</strong><span class="summary-hint">Exact imported levels, shares, and future-selection fractions</span></summary>
+          <div class="method-details-content"><p>Total current Bell levels: <strong id="advanced-distribution-total">&mdash;</strong></p><div class="advanced-distribution-table"><div class="advanced-distribution-row opportunities-header"><strong>Index / reward</strong><strong>Exact level</strong><strong>Exact share</strong><strong>Future selection chance</strong></div><div id="advanced-distribution-table-body"></div></div><p class="muted">This is descriptive account context. Existing level shares never alter future reward selection.</p></div>
+        </details>
+        <details class="method-details">
+          <summary><strong>Bell Rate Breakdown</strong><span class="summary-hint">Source-backed factors; incomplete totals stay blocked</span></summary>
+          <div class="method-details-content">
+            <div class="method-overview-grid">
+              <div><span>Base rate</span><strong>10</strong></div>
+              <div><span>Monument multiplier</span><strong id="rate-monument-multiplier">&mdash;</strong></div>
+              <div><span>Measurement multiplier</span><strong id="rate-measurement-multiplier">&mdash;</strong></div>
+              <div><span>Overkill quantities W1–W7</span><strong id="rate-overkill-quantities">&mdash;</strong></div>
+              <div><span>Measurement quantity found</span><strong id="rate-measurement-quantity">&mdash;</strong></div>
+              <div><span>Measurement base bonus</span><strong id="rate-measurement-base">&mdash;</strong></div>
+              <div><span>Measurement bonus percent</span><strong id="rate-measurement-bonus">&mdash;</strong></div>
+              <div><span>Bell Methods multiplier</span><strong id="rate-method-multiplier">&mdash;</strong></div>
+              <div><span>Jar 11 level / multiplier</span><strong id="ringing-jar-11">&mdash;</strong></div>
+              <div><span>Jar 36 level / multiplier</span><strong id="ringing-jar-36">&mdash;</strong></div>
+              <div><span>Legend talent 29</span><strong id="ringing-jar-talent">&mdash;</strong></div>
+              <div><span>Combined Ringing Jar multiplier</span><strong id="ringing-jar-combined">&mdash;</strong></div>
+              <div><span>Calculated Bell EXP/hour</span><strong id="rate-calculated-total">Incomplete</strong></div>
+            </div>
+            <p id="rate-breakdown-status" class="muted"><strong>Automatic Bell-rate reconstruction incomplete.</strong> Import a save to inspect the exact unresolved dependency.</p>
+            <pre id="rate-source-details" class="developer-raw-values">Import a save to show exact source paths and intermediate values.</pre>
+          </div>
+        </details>
+        <details class="method-details" id="bell-rate-candidates-details">
+          <summary><strong>Bell Rate Upgrade Candidates</strong><span class="summary-hint">Independent one-step changes; no budget sequencing</span></summary>
+          <div class="method-details-content">
+            <p id="bell-rate-candidates-status" class="muted">Import a save to calculate upgrade candidates.</p>
+            <div class="candidate-table-wrap"><table class="candidate-table"><thead><tr><th>Upgrade</th><th>Current level</th><th>Next cost</th><th>Owned</th><th>Affordable</th><th>Rate gain</th><th>Percent gain</th><th>New Bell rate</th><th>Extra 2-hour rolls</th><th>Status</th></tr></thead><tbody id="bell-rate-candidates-body"></tbody></table></div>
+            <details class="pace-subdetails"><summary><strong>Exact candidate inputs</strong><span>Paths, effects, costs, and projections</span></summary><pre id="bell-rate-candidate-source-details" class="developer-raw-values">Import a save to show exact candidate data.</pre></details>
+          </div>
+        </details>
+        <details class="method-details" id="bell-rate-optimizer-details">
+          <summary><strong>Bell Rate Optimizer</strong><span>Temporary Phase 4 sequence search</span></summary>
+          <div class="planner-input-grid">
+            <label>Coin-spending character<select id="bell-rate-character-select"><option value="">Select after importing a save</option></select></label>
+            <label>Optimization mode<select id="bell-rate-optimizer-mode"><option value="practical">Practical Bell Gains</option><option value="maximum">Maximum Bell Rate</option><option value="player-budget">Player Budget</option></select></label>
+            <label>Optimization objective<select id="bell-rate-optimizer-objective"><option value="highest-rate">Highest Bell EXP/hour</option><option value="two-hour-rolls">Most additional Bell rolls after 2 hours</option><option value="forty-eight-hour-rolls">Most additional Bell rolls after 48 hours</option><option value="reach-ending-ring">Reach a chosen ending ring</option><option value="reach-target-chance">Reach a chosen fresh-run target chance</option></select></label>
+            <label>Search safety limit per upgrade<input id="bell-rate-optimizer-max" type="number" min="0" max="50" step="1" value="10"></label>
+            <label>Minimum practical cumulative rate gain per pool<input id="bell-rate-practical-threshold" type="number" min="0" step="0.01" value="0.25"></label>
+            <label>Chosen ending ring<input id="bell-rate-target-ring" type="number" min="1" step="1" placeholder="Optional"></label>
+            <label>Chosen target chance (%)<input id="bell-rate-target-chance" type="number" min="0" max="100" step="0.1" placeholder="Optional"></label>
+            <label><input id="bell-rate-maximum-excess" type="checkbox"> Continue spending after a target is reached</label>
+          </div>
+          <label>Resource-preservation preset<select id="bell-rate-resource-preset"><option value="free">Spend freely</option><option value="25">Spend up to 25%</option><option value="50">Spend up to 50%</option><option value="reserve25">Keep 25% in reserve</option><option value="custom">Custom</option></select></label>
+          <div id="bell-rate-resource-constraints" class="candidate-table-wrap"></div>
+          <p class="muted">The export does not preserve the live active-character identifier. Select which character would pay Method 0's coin cost.</p>
+          <p class="muted">Maximum Bell Rate is a Bell-only maximum. It does not account for other uses of these resources.</p>
+          <button id="run-bell-rate-optimizer" type="button" class="primary-button" disabled>Run Optimizer</button>
+          <p id="bell-rate-optimizer-status" class="muted">Import a save to enable the optimizer.</p>
+          <div id="bell-rate-optimizer-summary"></div>
+          <h4>Plan comparison</h4><div id="bell-rate-plan-comparison"></div>
+          <h4>Recommended purchases</h4><div id="bell-rate-optimizer-purchases"></div>
+          <h4>Remaining resources</h4><div id="bell-rate-optimizer-resources"></div>
+          <h4>Best upgrades to work toward</h4><div id="bell-rate-optimizer-work-toward"></div>
+          <h4>Progression and RNG opportunities</h4><div id="bell-rate-optimizer-opportunities"></div>
+        </details>
+      
+
+      <section class="advanced-section target-evaluator" aria-labelledby="target-evaluator-title">
+        <div class="section-heading">
+          <div><p class="section-number">03 / Target evaluator</p><h2 id="target-evaluator-title">Selected Bell Reward Target</h2></div>
+          <p>Analytically evaluates one reward using imported account data and verified mechanics. It does not simulate or optimize the full run.</p>
+        </div>
+        <div class="target-input-grid">
+          <label><span>Target reward</span><select id="target-reward"><option value="0">Bucket Fill Rate</option><option value="1">All Villager EXP</option><option value="2">Harp Note Gains</option><option value="3">Daily Lamp Wishes</option><option value="4">Extra Rupie Chance</option><option value="5">Double Torch Chance</option><option value="6">Coins From Fountain</option></select></label>
+          <label><span>I want at least</span><input id="target-reward-level" type="number" min="0" step="1" placeholder="e.g. 1200"></label>
+          <label><span>By ring</span><input id="target-ring" type="number" min="0" step="1" placeholder="e.g. 1000"></label>
+        </div>
+        <button id="evaluate-target" type="button">Evaluate Selected Reward</button>
+        <p id="target-evaluator-status" class="import-status" role="status" aria-live="polite">Import a save and enter a target level and ring.</p>
+        <div id="target-results" class="target-results" hidden>
+          <div><span>Result type</span><strong id="result-calculation-method">&mdash;</strong></div>
+          <div><span>Future rings</span><strong id="result-future-rings">—</strong></div>
+          <div><span>Future major rings</span><strong id="result-major-rings">—</strong></div>
+          <div><span>Expected finish</span><strong id="result-expected-level">—</strong></div>
+          <div><span>Chance to hit your goal</span><strong id="result-target-probability">—</strong></div>
+          <div class="percentile-result"><span>Detailed percentile table</span><strong id="result-percentiles">—</strong></div>
+        </div>
+        <p class="computation-note">Exact dynamic programming is limited to 500 future rings and a 250,000-level outcome span to keep the browser responsive. Longer ranges use a continuity-corrected analytical normal approximation.</p>
+      </section>
+
+      <section class="advanced-section" aria-labelledby="evaluation-title">
+        <div class="output-heading"><div><p class="section-number">04 / Current comparison</p><h2 id="evaluation-title">Current Run Evaluation</h2></div><span id="current-comparison-label" class="rating-pill">Awaiting target</span></div>
+        <div class="current-comparison-grid">
+          <div><span>Result type</span><strong id="current-comparison-method">&mdash;</strong></div>
+          <div><span>Current level</span><strong id="current-selected-level">—</strong></div>
+          <div><span>Average at this ring</span><strong id="expected-current-level">—</strong></div>
+          <div><span>Above or below average</span><strong id="current-level-difference">—</strong></div>
+          <div><span>Current percentile</span><strong id="current-level-percentile">—</strong></div>
+        </div>
+        <p class="muted comparison-explanation">This comparison applies only to the selected reward. This comparison assumes your currently imported Bell mechanics applied throughout the run. If your Bolaia study level, Bell upgrades, or available rewards changed during this run, the historical comparison is approximate.</p>
+      </section>
+        </div>
+      </details>
+
+      <section class="two-column-outputs" hidden aria-hidden="true">
+        <article class="panel output-panel">
+          <p class="section-number">04 / Look ahead</p><h2>Run Saveability</h2>
+          <p class="muted"><strong>Not used by the current evaluator.</strong></p>
+          <p class="muted">How likely is continued ringing to improve this run?</p>
+          <div class="saveability-table">
+            <div><span>Continue 100 more rings</span><strong>Not calculated</strong></div>
+            <div><span>Continue 250 more rings</span><strong>Not calculated</strong></div>
+            <div><span>Continue 500 more rings</span><strong>Not calculated</strong></div>
+          </div>
+        </article>
+        <article class="panel output-panel featured">
+          <p class="section-number">05 / Compare paths</p><h2>Simulation and Strategy Comparison</h2>
+          <p class="muted"><strong>Not used by the current evaluator.</strong></p>
+          <div class="empty-state compact"><strong>Simulations are not implemented yet</strong><p>Continue, reset, goal-focused, and balanced strategies will be compared here.</p></div>
+        </article>
+      </section>
+
+      <section class="panel output-panel planner" hidden aria-hidden="true">
+        <p class="section-number">06 / Plan resources</p><h2>Reset and Lantern Planner</h2>
+        <p class="muted"><strong>Not used by the current evaluator.</strong></p>
+        <div class="planner-placeholders"><div><span>Suggested reset timing</span><strong>Not calculated</strong></div><div><span>Suggested lantern use</span><strong>Not calculated</strong></div><div><span>Expected practical gain</span><strong>Not calculated</strong></div></div>
+      </section>
+
+      <details id="developer-tools" class="panel developer-tools" data-collapsed-default="true" hidden>
+        <summary>
+          <span><span class="dev-badge">Developer only</span><strong>Developer Tools</strong></span>
+          <span class="summary-hint">Expand / collapse</span>
+        </summary>
+        <div class="developer-content">
+          <div class="privacy-notice"><strong>Private and local:</strong> JSON processing happens only in this browser. Nothing is uploaded or transmitted anywhere.</div>
+          <p class="muted">Upload a file or paste JSON above. This tool searches for possible fields without modifying the JSON, choosing a save path, or claiming that any candidate is correct.</p>
+          <div id="json-status" class="inspector-status" role="status" aria-live="polite">No JSON loaded.</div>
+          <section class="debug-export-tools" aria-labelledby="debug-export-title">
+            <div><h3 id="debug-export-title">Loaded JSON export</h3><p>Use this only to create a private local reverse-engineering fixture.</p></div>
+            <div class="inspector-actions">
+              <button id="export-loaded-json" type="button" class="secondary-button" disabled>Export Loaded JSON</button>
+              <button id="export-kill-fixture" type="button" class="secondary-button" disabled title="Safe filtering cannot be guaranteed while unknown save fields are still being mapped.">Export Kill-Data Search Fixture</button>
+              <button id="load-debug-fixture" type="button" class="secondary-button">Load Local Debug Fixture</button>
+            </div>
+            <p class="muted">The filtered fixture export is disabled because removing unknown fields safely cannot yet be guaranteed.</p>
+            <div id="full-export-confirmation" class="export-confirmation" hidden>
+              <p><strong>This developer export may contain account and character information. Keep it private and do not publish it.</strong></p>
+              <button id="confirm-full-export" type="button">Confirm and Download</button>
+              <button id="cancel-full-export" type="button" class="secondary-button">Cancel</button>
+            </div>
+            <p id="debug-fixture-status" class="muted" role="status" aria-live="polite" data-auto-load="false">Local fixture path: <code>reference/idleon-save-debug.json</code>. It is never loaded automatically.</p>
+          </section>
+          <div class="confirmed-renewal-paths">
+            <strong>Confirmed Bell renewal save paths</strong>
+            <code>BellExpPerHR(3) — renewalCurrencyPerHour = 10 (verified constant)</code>
+            <code>$.data.Holes::parsed[18][5] — Bell Clean method/unlock index</code>
+            <code>$.data.Holes::parsed[18][6] — currentRenewalCurrency</code>
+            <code>$.data.Holes::parsed[18][7] — lifetimeBellRenewals</code>
+          </div>
+          <div id="ringing-raw-details" class="confirmed-renewal-paths">
+            <strong>Confirmed Ringing progress fields</strong>
+            <code>$.data.Holes::parsed[18][0] — currentRingingExp: <span id="raw-ringing-exp">not imported</span></code>
+            <code>$.data.Holes::parsed[18][1] — rawRingIndex: <span id="raw-ringing-index">not imported</span></code>
+            <code>Calculated next-ring requirement: <span id="raw-ringing-requirement">not imported</span></code>
+          </div>
+          <div id="opportunities-raw-details" class="confirmed-renewal-paths" hidden>
+            <strong>Remaining-opportunity progression details</strong>
+            <div id="opportunities-raw-window-values"></div>
+          </div>
+          <div class="confirmed-renewal-paths">
+            <strong>Confirmed Bell Improvement Method fields</strong>
+            <code>$.data.Holes::parsed[16][0..5] — exact levels: <span id="raw-method-levels">not imported</span></code>
+            <code>$.data.Holes::parsed[13][45] — exact ownership value: <span id="raw-upgrade-45">not imported</span></code>
+            <code>Exact scaling multiplier: <span id="raw-upgrade-45-multiplier">not imported</span></code>
+            <code>Exact Ringing method multiplier: <span id="raw-ringing-method-multiplier">not imported</span></code>
+          </div>
+          <div class="confirmed-renewal-paths">
+            <strong>Confirmed Ringing Jar fields</strong>
+            <code>$.data.Holes::parsed[24][11] — level: <span id="raw-jar-11">not imported</span></code>
+            <code>$.data.Holes::parsed[24][36] — level: <span id="raw-jar-36">not imported</span></code>
+            <code>$.data.Spelunk::parsed[18][29] — Legend talent level: <span id="raw-jar-talent">not imported</span></code>
+          </div>
+          <div id="ring-import-developer-details" class="confirmed-import-details">
+            <p id="ring-source-details">No Bell ring index has been imported in this session.</p>
+            <div id="major-timing-details" class="major-timing-details" hidden>
+              <div><span>Next major payout ring</span><strong id="next-major-ring">—</strong></div>
+              <div><span>Rings remaining until next major payout</span><strong id="rings-until-major">—</strong></div>
+              <div><span>Major payouts completed this run</span><strong id="major-payouts-completed">—</strong></div>
+            </div>
+            <div id="bolaia-import-details" class="bolaia-import-details" hidden>
+              <div><span>Bolaia Bell study level</span><strong id="bolaia-study-level">—</strong></div>
+              <div><span>Calculated major bonus</span><strong id="calculated-major-bonus">—</strong></div>
+              <div><span>Confirmed source path</span><strong id="bolaia-source-path">—</strong></div>
+            </div>
+            <div id="upgrade-import-details" class="upgrade-import-details" hidden>
+              <div><span>Upgrade 42</span><strong id="upgrade-42-owned">—</strong><small>Raw: <b id="upgrade-42-raw">—</b></small><code id="upgrade-42-path">—</code></div>
+              <div><span>Upgrade 60</span><strong id="upgrade-60-owned">—</strong><small>Raw: <b id="upgrade-60-raw">—</b></small><code id="upgrade-60-path">—</code></div>
+              <div><span>Upgrade 86</span><strong id="upgrade-86-owned">—</strong><small>Raw: <b id="upgrade-86-raw">—</b></small><code id="upgrade-86-path">—</code></div>
+              <p>Upgrade 42 and 60 ownership is imported, but their effect values are not yet imported or calculated.</p>
+            </div>
+            <div id="normal-gain-import-details" class="normal-gain-import-details" hidden>
+              <div><span>Upgrade 42 contribution</span><strong id="upgrade-42-contribution">—</strong></div>
+              <div><span>Upgrade 60 fallback contribution</span><strong id="upgrade-60-contribution">—</strong></div>
+              <div><span>Fallback ring-extra decimal</span><strong id="fallback-ring-decimal">—</strong></div>
+              <div><span>Special 3-level outcome enabled</span><strong id="special-three-enabled">—</strong></div>
+              <div><span>Special trigger chance</span><strong id="special-trigger-chance">20%</strong></div>
+            </div>
+            <div id="cavern-import-details" class="cavern-import-details" hidden>
+              <div><span>Raw first villager level</span><strong id="villager-level-0">—</strong></div>
+              <div><span>Calculated caverns owned</span><strong id="calculated-caverns-owned">—</strong></div>
+              <div><span>Confirmed source path</span><strong id="cavern-source-path">—</strong></div>
+            </div>
+            <section id="probability-details" class="probability-details" hidden>
+              <div class="probability-summary-grid">
+                <div><span>P(normal gain = 1)</span><strong id="probability-gain-1">—</strong></div>
+                <div><span>P(normal gain = 2)</span><strong id="probability-gain-2">—</strong></div>
+                <div><span>P(normal gain = 3)</span><strong id="probability-gain-3">—</strong></div>
+                <div><span>Expected normal gain before double</span><strong id="expected-normal-before">—</strong></div>
+                <div><span>Expected normal gain after double</span><strong id="expected-normal-after">—</strong></div>
+                <div><span>Expected major-ring gain</span><strong id="expected-major-after">—</strong></div>
+              </div>
+              <div class="distribution-grid">
+                <div><h4>Normal ring before double</h4><div id="normal-distribution-before"></div></div>
+                <div><h4>Normal ring after double</h4><div id="normal-distribution-after"></div></div>
+                <div><h4>Major ring before double</h4><div id="major-distribution-before"></div></div>
+                <div><h4>Major ring after double</h4><div id="major-distribution-after"></div></div>
+              </div>
+              <p>Analytical probability calculation from independent uniform random values. No Monte Carlo simulation is used.</p>
+            </section>
+            <section class="reward-selection-details">
+              <div class="reward-selection-heading"><span>Available Bell rewards</span><strong id="available-reward-summary">—</strong></div>
+              <div id="reward-selection-list" class="reward-selection-list"></div>
+              <p>Cavern count is imported from the confirmed first-villager level and remains editable for controlled testing. Selection probabilities use confirmed inclusive random-integer bounds.</p>
+            </section>
+            <div class="mechanics-preview">
+              <div><span>Normal major-ring payout range</span><strong id="normal-major-range">—</strong></div>
+              <div><span>Doubled major-ring payout range</span><strong id="doubled-major-range">—</strong></div>
+              <div><span>Is the next ring a major ring?</span><strong id="next-ring-is-major">Unknown</strong></div>
+            </div>
+          </div>
+
+          <div class="inspector-search-grid">
+            <label><span>Property or text search</span><input id="json-text-search" type="search" placeholder="e.g. Bell, Lantern, a property name..."></label>
+            <label><span>Exact numeric value</span><input id="json-number-search" type="number" step="any" placeholder="e.g. 42"></label>
+            <label><span>Seven-number sequence</span><input id="json-sequence-search" type="text" placeholder="e.g. 12, 8, 15, 4, 9, 6, 3"></label>
+          </div>
+          <div class="inspector-actions">
+            <button id="inspect-pasted-json" type="button">Inspect Pasted JSON</button>
+            <button id="run-json-search" type="button" class="secondary-button">Search Loaded JSON</button>
+            <button id="search-parsed-holes" type="button" class="secondary-button">Search Parsed Holes Data</button>
+            <button id="find-bell-candidates" type="button" class="secondary-button">Find Candidate Bell Data</button>
+            <button id="compare-manual-levels" type="button" class="secondary-button">Compare JSON to Manual Bell Levels</button>
+            <button id="run-parser-tests" type="button" class="secondary-button">Run Developer Tests</button>
+          </div>
+          <div id="parser-test-results" class="parser-test-results" role="status" aria-live="polite"></div>
+          <p class="result-limit-note">Searches inspect at most 100,000 JSON nodes and display at most 200 results.</p>
+          <div id="parsed-holes-control" class="parsed-holes-control" hidden>
+            <div><span class="parsed-badge">Parsed from serialized JSON</span><code>$.data.Holes::parsed</code></div>
+            <button id="open-parsed-holes" type="button" class="secondary-button">Open Parsed Value</button>
+          </div>
+          <section id="parsed-value-browser" class="parsed-value-browser" aria-labelledby="parsed-browser-title" hidden>
+            <div class="parsed-browser-heading">
+              <div><span id="value-browser-badge" class="parsed-badge">Value Browser</span><h3 id="parsed-browser-title">Value Browser</h3></div>
+              <button id="close-parsed-browser" type="button" class="secondary-button">Close</button>
+            </div>
+            <nav id="parsed-breadcrumbs" class="parsed-breadcrumbs" aria-label="Parsed value breadcrumb"></nav>
+            <code id="parsed-value-path" class="parsed-value-path"></code>
+            <div class="parsed-browser-meta"><strong id="parsed-value-type"></strong><span id="parsed-value-length"></span></div>
+            <button id="parsed-browser-back" type="button" class="secondary-button">Back</button>
+            <button id="copy-opened-value" type="button" class="secondary-button">Copy Value</button>
+            <div id="value-page-controls" class="value-page-controls" hidden><label><span>Start entry</span><input id="value-page-start" type="number" min="0" step="1" value="0"></label><button id="show-value-page" type="button" class="secondary-button">Show entries</button></div>
+            <div id="parsed-children" class="parsed-children"></div>
+          </section>
+          <section class="inspector-output" aria-labelledby="inspector-results-title">
+            <div class="inspector-output-heading"><h3 id="inspector-results-title">Inspector Results</h3><span id="result-count"></span></div>
+            <div id="json-results" class="json-results"><p class="muted">Load valid JSON, then choose a search or discovery action.</p></div>
+          </section>
+
+          <details class="save-compare-tool">
+            <summary><strong>Compare Two Saves</strong><span class="dev-badge">Developer only</span></summary>
+            <div class="save-compare-content">
+              <p class="compare-purpose">Use controlled before-and-after game states—such as immediately before and after a Bell reset—to identify which parsed Holes paths changed. This tool does not infer or label any path as a Bell mechanic.</p>
+              <div class="privacy-notice"><strong>Private and local:</strong> Both saves remain in this browser. Only displayed difference rows can be copied.</div>
+              <div class="compare-save-grid">
+                <section class="compare-save-card" aria-labelledby="save-a-title">
+                  <h4 id="save-a-title">Save A <span>Pre-reset</span></h4>
+                  <label><span>Upload Save A</span><input id="compare-file-a" type="file" accept=".json,application/json"></label>
+                  <label><span>Or paste Save A JSON</span><textarea id="compare-paste-a" rows="6" placeholder="Paste the complete pre-reset save..."></textarea></label>
+                  <button id="load-save-a" type="button" class="secondary-button">Load Save A</button>
+                  <p id="compare-status-a" class="compare-save-status" role="status">Not loaded.</p>
+                </section>
+                <section class="compare-save-card" aria-labelledby="save-b-title">
+                  <h4 id="save-b-title">Save B <span>Post-reset</span></h4>
+                  <label><span>Upload Save B</span><input id="compare-file-b" type="file" accept=".json,application/json"></label>
+                  <label><span>Or paste Save B JSON</span><textarea id="compare-paste-b" rows="6" placeholder="Paste the complete post-reset save..."></textarea></label>
+                  <button id="load-save-b" type="button" class="secondary-button">Load Save B</button>
+                  <p id="compare-status-b" class="compare-save-status" role="status">Not loaded.</p>
+                </section>
+              </div>
+              <button id="compare-two-saves" type="button">Compare Parsed Holes Data</button>
+              <div class="compare-filters" aria-label="Difference filters">
+                <label><input id="filter-changed-only" type="checkbox" checked> <span>Changed values only</span></label>
+                <label><input id="filter-numeric-only" type="checkbox"> <span>Numeric changes only</span></label>
+                <label><input id="filter-array-paths" type="checkbox"> <span>Arrays containing changes</span></label>
+                <label><input id="filter-parsed-only" type="checkbox" checked> <span>Paths under $.data.Holes::parsed</span></label>
+                <label class="compare-search"><span>Parsed path or numeric value</span><input id="compare-search" type="search" placeholder="e.g. [17][0] or -3"></label>
+              </div>
+              <div class="compare-result-actions">
+                <p id="compare-summary" class="muted">Load both saves to begin.</p>
+                <button id="copy-displayed-differences" type="button" class="secondary-button" disabled>Copy Displayed Differences</button>
+              </div>
+              <div id="compare-differences" class="compare-differences"></div>
+            </div>
+          </details>
+        </div>
+      </details>
+    </main>
+    <footer>Unofficial community tool. Not affiliated with or endorsed by the creators of Legends of Idleon.</footer>
+  </div>
+  <script src="js/idleon-number-format.js"></script>
+  <script src="js/bell-mechanics.js"></script>
+  <script src="js/bell-rate-upgrade-candidates.js"></script>
+  <script src="js/bell-rate-optimizer.js"></script>
+  <script src="js/bell-rate-section.js"></script>
+  <script src="js/bell-account-validation.js"></script>
+  <script src="js/bell-history-snapshot.js"></script>
+  <script src="js/bell-history-comparison.js"></script>
+  <script src="js/bell-history-storage.js"></script>
+  <script src="js/bell-history-import.js"></script>
+  <script src="js/bell-history-section.js"></script>
+  <script src="js/bell-history-presentation.js"></script>
+  <script src="js/developer-mode.js"></script>
+  <script src="js/save-import-workflow.js"></script>
+  <script src="js/save-parsing.js"></script>
+  <script src="js/parser-tests.js"></script>
+  <script src="js/target-evaluator.js"></script>
+  <script src="js/objective-selection.js"></script>
+  <script src="js/reset-lantern-planner.js"></script>
+  <script src="js/current-reset-decision.js"></script>
+  <script src="js/gain-pace.js"></script>
+  <script src="js/remaining-opportunities.js"></script>
+  <script src="js/current-run-distribution.js"></script>
+  <script src="js/compare-saves.js"></script>
+  <script src="js/simulations.js"></script>
+  <script src="js/optimization-goals.js"></script>
+  <script src="js/run-evaluation.js"></script>
+  <script src="js/json-inspector.js"></script>
+  <script src="js/user-interface.js"></script>
+</body>
+</html>
