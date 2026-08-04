@@ -134,7 +134,8 @@ function calculateOverkillQuantities(killsLeftArrays, riftLevel) {
     var monsterKills = mapIndexes.map(function (mapIndex, monsterIndex) {
       var requirement = DEATH_NOTE_MAP_REQUIREMENTS[worldIndex][monsterIndex];
       return killsLeftArrays.reduce(function (total, characterArray) {
-        var entry = characterArray[mapIndex]; var killsLeft = Array.isArray(entry) ? entry[0] : NaN;
+        var entry = characterArray[mapIndex]; var rawKillsLeft = Array.isArray(entry) ? entry[0] : NaN;
+        var killsLeft = typeof rawKillsLeft === "number" ? rawKillsLeft : typeof rawKillsLeft === "string" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(rawKillsLeft.trim()) ? Number(rawKillsLeft) : NaN;
         if (typeof killsLeft !== "number" || !Number.isFinite(killsLeft)) return NaN;
         return total + requirement - killsLeft;
       }, 0);

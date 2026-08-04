@@ -13,7 +13,7 @@ BellOptimizer.saveImportWorkflow = (function () {
       JSON.parse(text);
       stage="Parsing IdleOn save";
       var result=handlers.parseSave(text);
-      if(!result||!result.ok){var parserError=result&&result.error;throw new Error(parserError?(parserError.message+(parserError.path?" Path: "+parserError.path:"")):"The save parser returned no result.");}
+      if(!result||!result.ok){var parserError=result&&result.error,publicNestedFormatError=parserError&&typeof parserError.path==="string"&&parserError.path.indexOf("$.data.")===0;throw new Error(parserError?(publicNestedFormatError?"This save contains Idleon data in an unsupported or incomplete format. Try exporting a fresh JSON save.":parserError.message+(parserError.path?" Path: "+parserError.path:"")):"The save parser returned no result.");}
       stage="Rendering imported data";
       handlers.render(result);
       return {ok:true,result:result};

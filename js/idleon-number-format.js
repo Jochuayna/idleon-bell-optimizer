@@ -14,19 +14,57 @@ BellOptimizer.idleonNumberFormat = (function () {
     return trimZeros(value.toFixed(decimals));
   }
 
+  function formatParts(sign, significant, exponent) {
+    var digits = String(significant).padStart(3, "0");
+    var text;
+    if (exponent < 3) {
+      var decimalPosition = exponent + 1;
+      if (decimalPosition <= 0) text = "0." + "0".repeat(-decimalPosition) + digits;
+      else if (decimalPosition >= digits.length) text = digits + "0".repeat(decimalPosition - digits.length);
+      else text = digits.slice(0, decimalPosition) + "." + digits.slice(decimalPosition);
+      text = trimZeros(text);
+    } else if (exponent >= 21) {
+      text = trimZeros(digits.charAt(0) + "." + digits.slice(1)) + "e" + exponent;
+    } else {
+      var tier = Math.floor(exponent / 3) * 3;
+      var position = exponent - tier + 1;
+      text = position >= digits.length ? digits + "0".repeat(position - digits.length) : digits.slice(0, position) + "." + digits.slice(position);
+      text = trimZeros(text) + suffixes[tier];
+    }
+    return sign + text;
+  }
+
+  function formatExactDecimal(text) {
+    var match = String(text).trim().match(/^([+-]?)(\d+)(?:\.(\d+))?$/);
+    if (!match) return null;
+    var sign = match[1] === "-" ? "-" : "";
+    var integer = match[2];
+    var fraction = match[3] || "";
+    var combined = integer + fraction;
+    var first = combined.search(/[1-9]/);
+    if (first === -1) return "0";
+    var exponent = integer.length - first - 1;
+    var significant = Number(combined.slice(first, first + 3).padEnd(3, "0"));
+    if (Number(combined.charAt(first + 3) || "0") >= 5) significant += 1;
+    if (significant === 1000) { significant = 100; exponent += 1; }
+    return formatParts(sign, significant, exponent);
+  }
+
   function format(value) {
+    if (typeof value === "bigint") return formatExactDecimal(value.toString());
+    if (typeof value === "string") return formatExactDecimal(value) || "—";
     if (typeof value !== "number" || Number.isNaN(value)) return "—";
     if (value === Infinity) return "∞";
     if (value === -Infinity) return "-∞";
     if (value === 0) return "0";
     var sign = value < 0 ? "-" : "";
     var absolute = Math.abs(value);
-    if (absolute < 1000) return sign + threeSignificantDigits(absolute);
-    var exponent = Math.floor(Math.log10(absolute) / 3) * 3;
-    if (exponent < 3) exponent = 3;
-    var scaled = absolute / Math.pow(10, exponent);
-    var suffix = suffixes[exponent] || "e" + exponent;
-    return sign + threeSignificantDigits(scaled) + suffix;
+    if (absolute < 1000) {
+      var small = threeSignificantDigits(absolute);
+      return small === "1000" ? sign + "1K" : sign + small;
+    }
+    var scientific = absolute.toExponential(2).split("e");
+    return formatParts(sign, Math.round(Number(scientific[0]) * 100), Number(scientific[1]));
   }
 
   function parse(text) {

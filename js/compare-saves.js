@@ -35,13 +35,9 @@ BellOptimizer.saveComparison = (function () {
     try { outer = JSON.parse(text); }
     catch (error) { return { ok: false, message: "Invalid outer JSON: " + error.message }; }
     if (!outer || typeof outer !== "object" || !outer.data || typeof outer.data !== "object") return { ok: false, message: "Missing data object." };
-    if (!Object.prototype.hasOwnProperty.call(outer.data, "Holes")) return { ok: false, message: "Missing data.Holes." };
-    if (typeof outer.data.Holes !== "string") return { ok: false, message: "data.Holes is not a serialized JSON string." };
-    var parsed;
-    try { parsed = JSON.parse(outer.data.Holes); }
-    catch (error) { return { ok: false, message: "Invalid serialized data.Holes JSON: " + error.message }; }
-    if (!parsed || typeof parsed !== "object") return { ok: false, message: "Parsed data.Holes is not an array or object." };
-    return { ok: true, value: parsed };
+    var holesResult = BellOptimizer.saveParsing.parseHolesField(outer.data);
+    if (!holesResult.ok) return { ok: false, message: holesResult.error.message };
+    return { ok: true, value: holesResult.value };
   }
 
   function setLoadStatus(side, type, text) {

@@ -11,6 +11,42 @@ BellOptimizer.saveParsing = (function () {
     return (5 + 3 * rawRingIndex) * Math.pow(1.05, rawRingIndex);
   }
 
+  function isPlainObject(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    var prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  }
+
+  function parseNestedSaveField(container, fieldName, options) {
+    options = options || {};
+    var path = options.path || "$.data." + fieldName;
+    var parsedPath = options.parsedPath || path + "::parsed";
+    var codeName = options.codeName || String(fieldName).replace(/[^A-Za-z0-9]+/g, "_").toUpperCase();
+    if (!container || typeof container !== "object" || !Object.prototype.hasOwnProperty.call(container, fieldName)) return failure(options.missingCode || "MISSING_" + codeName, "The save does not contain " + path.replace(/^\$\./, "") + ".", path);
+    var raw = container[fieldName];
+    var value;
+    var representation;
+    if (typeof raw === "string") {
+      if (!raw.trim()) return failure(options.emptyCode || "EMPTY_" + codeName, path.replace(/^\$\./, "") + " is empty.", path);
+      try { value = JSON.parse(raw); }
+      catch (error) { return failure(options.invalidSerializedCode || "INVALID_SERIALIZED_" + codeName + "_JSON", path.replace(/^\$\./, "") + " contains invalid serialized JSON: " + error.message, parsedPath); }
+      representation = "serialized-string";
+    } else if (Array.isArray(raw) || isPlainObject(raw)) {
+      value = raw;
+      representation = Array.isArray(raw) ? "array" : "plain-object";
+    } else return failure(options.unsupportedTypeCode || "UNSUPPORTED_" + codeName + "_TYPE", path.replace(/^\$\./, "") + " must contain an array, object, or JSON-encoded array/object.", path);
+    if (!Array.isArray(value) && !isPlainObject(value)) return failure(options.invalidStructureCode || "INVALID_" + codeName + "_STRUCTURE", path.replace(/^\$\./, "") + " does not contain an array or plain object.", parsedPath);
+    return { ok: true, value: value, representation: representation, path: path, parsedPath: parsedPath };
+  }
+
+  function parseHolesField(data) {
+    return parseNestedSaveField(data, "Holes", { path: "$.data.Holes", parsedPath: "$.data.Holes::parsed", codeName: "DATA_HOLES", missingCode: "MISSING_DATA_HOLES", emptyCode: "EMPTY_DATA_HOLES", invalidSerializedCode: "INVALID_SERIALIZED_HOLES_JSON", unsupportedTypeCode: "UNSUPPORTED_DATA_HOLES_TYPE", invalidStructureCode: "INVALID_DATA_HOLES_STRUCTURE" });
+  }
+
+  function parseSpelunkField(data) {
+    return parseNestedSaveField(data, "Spelunk", { path: "$.data.Spelunk", parsedPath: "$.data.Spelunk::parsed", codeName: "DATA_SPELUNK", missingCode: "MISSING_DATA_SPELUNK", emptyCode: "EMPTY_DATA_SPELUNK", invalidSerializedCode: "INVALID_SERIALIZED_SPELUNK_JSON", unsupportedTypeCode: "UNSUPPORTED_DATA_SPELUNK_TYPE", invalidStructureCode: "INVALID_DATA_SPELUNK_STRUCTURE" });
+  }
+
   function parseBellRewardLevels(outerJsonText) {
     var outer;
     try {
@@ -25,25 +61,13 @@ BellOptimizer.saveParsing = (function () {
     if (!outer.data || typeof outer.data !== "object" || Array.isArray(outer.data)) {
       return failure("MISSING_DATA", "The outer save does not contain a valid data object.", "$.data");
     }
-    if (!Object.prototype.hasOwnProperty.call(outer.data, "Holes")) {
-      return failure("MISSING_DATA_HOLES", "The save does not contain data.Holes.", "$.data.Holes");
-    }
-    if (typeof outer.data.Holes !== "string") {
-      return failure("DATA_HOLES_NOT_STRING", "data.Holes must be a serialized JSON string.", "$.data.Holes");
-    }
+    var holesResult = parseHolesField(outer.data);
+    if (!holesResult.ok) return holesResult;
+    var holes = holesResult.value;
 
-    var holes;
-    try {
-      holes = JSON.parse(outer.data.Holes);
-    } catch (error) {
-      return failure("INVALID_SERIALIZED_HOLES_JSON", "data.Holes contains invalid serialized JSON: " + error.message, "$.data.Holes::parsed");
-    }
-
-    if (!Object.prototype.hasOwnProperty.call(outer.data, "Spelunk")) return failure("MISSING_DATA_SPELUNK", "The save does not contain data.Spelunk, which is required for the verified Jar Legend talent.", "$.data.Spelunk");
-    if (typeof outer.data.Spelunk !== "string") return failure("DATA_SPELUNK_NOT_STRING", "data.Spelunk must be a serialized JSON string.", "$.data.Spelunk");
-    var spelunk;
-    try { spelunk = JSON.parse(outer.data.Spelunk); }
-    catch (error) { return failure("INVALID_SERIALIZED_SPELUNK_JSON", "data.Spelunk contains invalid serialized JSON: " + error.message, "$.data.Spelunk::parsed"); }
+    var spelunkResult = parseSpelunkField(outer.data);
+    if (!spelunkResult.ok) return spelunkResult;
+    var spelunk = spelunkResult.value;
 
     function readNestedNonnegative(container, outerIndex, innerIndex, label, code, rootPath) {
       var arrayPath = rootPath + "[" + outerIndex + "]";
@@ -271,21 +295,22 @@ BellOptimizer.saveParsing = (function () {
     };
     var klaKeys = Object.keys(outer.data).filter(function (key) { return /^KLA_\d+$/.test(key); }).sort(function (a, b) { return Number(a.slice(4)) - Number(b.slice(4)); });
     var killsLeftArrays = []; var klaPaths = []; var klaError = null;
-    if (!klaKeys.length) klaError = "No serialized data.KLA_n character arrays were found.";
+    if (!klaKeys.length) klaError = "No data.KLA_n character arrays were found.";
     klaKeys.forEach(function (key) {
       if (klaError) return;
-      var path = "$.data." + key + "::parsed"; var raw = outer.data[key];
-      if (typeof raw !== "string") { klaError = "$.data." + key + " is not a serialized JSON string."; return; }
-      try {
-        var parsedKla = JSON.parse(raw);
-        if (!Array.isArray(parsedKla)) { klaError = path + " is not an array."; return; }
-        killsLeftArrays.push(parsedKla); klaPaths.push(path);
-      } catch (error) { klaError = path + " contains invalid serialized JSON: " + error.message; }
+      var rootPath = "$.data." + key; var path = rootPath + "::parsed";
+      var klaResult = parseNestedSaveField(outer.data, key, { path:rootPath, parsedPath:path, codeName:"DATA_" + key });
+      if (!klaResult.ok) { klaError = klaResult.error.message + " Path: " + klaResult.error.path; return; }
+      if (!Array.isArray(klaResult.value)) { klaError = path + " is not an array."; return; }
+      killsLeftArrays.push(klaResult.value); klaPaths.push(path);
     });
     var riftLevelResult = optionalNestedNumber(outer.data, ["Rift", 0], "$.data");
     var overkillDetails = !klaError && riftLevelResult.ok ? BellOptimizer.bellMechanics.calculateOverkillQuantities(killsLeftArrays, riftLevelResult.value) : { ok: false, error: klaError || "Missing or invalid Rift level at $.data.Rift[0]." };
     var unresolvedRateDependencies = Object.keys(rateInputs).filter(function (name) { return !rateInputs[name].ok; }).map(function (name) { return name + " at " + rateInputs[name].path; });
     if (!overkillDetails.ok) unresolvedRateDependencies.push("OverkillQTY(0..6): " + overkillDetails.error);
+    var rateDependencyLabels = { monumentReward7Level:"Monument reward 7", monumentSlot9Level:"Monument slot 9", monumentCosmoLevel:"Monument Cosmo", fountainLevel:"Fountain Monumental Boost", fountainMarbleLevel:"Fountain marble scaling", measurementCosmoLevel:"Measurement Cosmo", measurementLevel:"Ringing Measurement" };
+    var rateDependencyIssues = Object.keys(rateInputs).filter(function (name) { return !rateInputs[name].ok; }).map(function (name) { return { dependency:rateDependencyLabels[name] || name, status:rateInputs[name].reason === "missing" ? "Missing" : "Invalid", reason:"A required imported progression value could not be verified." }; });
+    if (!overkillDetails.ok) rateDependencyIssues.push({ dependency:"Death Note", status:"Incomplete", reason:"Death Note kills-left data is missing or invalid for this save." });
     var ringingRateBreakdown = BellOptimizer.bellMechanics.calculateRingingRateBreakdown({
       monumentReward7Level: rateInputs.monumentReward7Level.ok ? rateInputs.monumentReward7Level.value : NaN,
       monumentSlot9Level: rateInputs.monumentSlot9Level.ok ? rateInputs.monumentSlot9Level.value : NaN,
@@ -300,6 +325,7 @@ BellOptimizer.saveParsing = (function () {
       jar36Multiplier: jarDetails.jar36Multiplier,
       unresolvedDependencies: unresolvedRateDependencies
     });
+    ringingRateBreakdown.dependencyIssues = rateDependencyIssues;
 
     function numericLike(value) {
       if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -315,8 +341,10 @@ BellOptimizer.saveParsing = (function () {
       return numericLike(current);
     }
     var gemItems = null;
-    if (typeof outer.data.GemItemsPurchased === "string") { try { gemItems = JSON.parse(outer.data.GemItemsPurchased); } catch (ignoreGemItemsError) {} }
-    else if (Array.isArray(outer.data.GemItemsPurchased)) gemItems = outer.data.GemItemsPurchased;
+    if (Object.prototype.hasOwnProperty.call(outer.data, "GemItemsPurchased")) {
+      var gemItemsResult = parseNestedSaveField(outer.data, "GemItemsPurchased", { path:"$.data.GemItemsPurchased", parsedPath:"$.data.GemItemsPurchased::parsed", codeName:"DATA_GEM_ITEMS_PURCHASED" });
+      if (gemItemsResult.ok) gemItems = gemItemsResult.value;
+    }
     var cosmoArrays = [holes[4], holes[5], holes[6]];
     var cosmoSpent = cosmoArrays.reduce(function (total, levels) { return total + (Array.isArray(levels) ? levels.reduce(function (sum, level) { return sum + (numericLike(level) || 0); }, 0) : 0); }, 0);
     var cosmoPointsLeft = Math.round((atNumeric(holes, [1, 2]) || 0) + (atNumeric(gemItems, [4]) || 0) - cosmoSpent);
@@ -455,5 +483,5 @@ BellOptimizer.saveParsing = (function () {
     };
   }
 
-  return { status: "confirmed-bell-fields-import", RENEWAL_COST: RENEWAL_COST, calculateNextRingRequiredExp: calculateNextRingRequiredExp, parseBellRewardLevels: parseBellRewardLevels };
+  return { status: "confirmed-bell-fields-import", RENEWAL_COST: RENEWAL_COST, calculateNextRingRequiredExp: calculateNextRingRequiredExp, parseNestedSaveField: parseNestedSaveField, parseHolesField: parseHolesField, parseSpelunkField: parseSpelunkField, parseBellRewardLevels: parseBellRewardLevels };
 }());

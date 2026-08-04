@@ -14,4 +14,9 @@ module.exports=function(){var referenced=Array.from(scripts.matchAll(/querySelec
   result("Progress History remains reachable before import",/id="bell-rate-section" class="panel bell-rate-section"/.test(html)&&!/id="bell-rate-section"[^>]*hidden/.test(html)&&/id="bell-rate-history-tab"/.test(html)),
   result("Developer Tools panel is absent from public layout",/id="developer-tools"[^>]*hidden/.test(html)),
   result("normal Advanced Details remain available",/id="advanced-details"/.test(html)&&html.indexOf("Show Advanced Details")!==-1)
+  ,result("redundant public release copy is absent",["Verified account factors and Bell-focused upgrade paths.","Candidates use complete Bell Ring, Ping, or Clean rates without changing the imported save.","Progress History is local and never saves automatically.","Compared continuing and renewing over the same","Manual controls, imported values, and full statistics"].every(function(text){return html.indexOf(text)===-1&&scripts.indexOf(text)===-1;}))
+  ,result("history privacy copy is concise with details available",html.indexOf("Bell History stays in this browser. Full Idleon saves are processed locally and are not retained or uploaded.")!==-1&&html.indexOf("Local storage and privacy details")!==-1)
+  ,result("renewal methodology moved to Advanced Details",/id="advanced-details"[\s\S]*id="decision-resource-text"/.test(html)&&main.indexOf('id="decision-resource-text"')===-1)
+  ,result("high-end explanation is not repeated in remaining-opportunities copy",scripts.indexOf("Even the high-end likely result is about")===-1)
+  ,result("history detail rates use shared exact formatter",/\["Bell Ring",format\(item\.rates\.ringExact\)\]/.test(scripts)&&/\["Bell Ping",format\(item\.rates\.pingExact\)\]/.test(scripts)&&/\["Bell Clean",format\(item\.rates\.cleanExact\)\]/.test(scripts))
 ];};
