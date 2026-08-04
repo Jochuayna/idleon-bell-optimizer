@@ -19,4 +19,8 @@ module.exports=function(){var referenced=Array.from(scripts.matchAll(/querySelec
   ,result("renewal methodology moved to Advanced Details",/id="advanced-details"[\s\S]*id="decision-resource-text"/.test(html)&&main.indexOf('id="decision-resource-text"')===-1)
   ,result("high-end explanation is not repeated in remaining-opportunities copy",scripts.indexOf("Even the high-end likely result is about")===-1)
   ,result("history detail rates use shared exact formatter",/\["Bell Ring",format\(item\.rates\.ringExact\)\]/.test(scripts)&&/\["Bell Ping",format\(item\.rates\.pingExact\)\]/.test(scripts)&&/\["Bell Clean",format\(item\.rates\.cleanExact\)\]/.test(scripts))
+  ,result("paste input remains lightweight",/pasteArea\.addEventListener\("input"[\s\S]*?pasteArea\.value\.length[\s\S]*?JSON ready to import\./.test(scripts)&&!/pasteArea\.addEventListener\("input"[\s\S]{0,500}(?:JSON\.parse|parseBellRewardLevels|saveImportWorkflow\.run)/.test(scripts))
+  ,result("multi-upgrade plan search is lazy",/normal-multi-upgrade-plans"\)\.addEventListener\("toggle"/.test(scripts)&&/Open this section to calculate multi-upgrade plans\./.test(scripts))
+  ,result("successful import does not retain raw JSON in rendering",/render:function\(result\)\{importStatus\.textContent="Calculating rates\.\.\.";importFromText\(null,result\);\}/.test(scripts))
+  ,result("public mode skips hidden developer rendering",/if \(BellOptimizer\.developerMode && BellOptimizer\.developerMode\.enabled\) \{\s*document\.querySelector\("#rate-source-details"\)/.test(scripts))
 ];};

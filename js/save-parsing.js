@@ -49,11 +49,14 @@ BellOptimizer.saveParsing = (function () {
 
   function parseBellRewardLevels(outerJsonText) {
     var outer;
-    try {
-      outer = JSON.parse(outerJsonText);
-    } catch (error) {
-      return failure("INVALID_OUTER_JSON", "The outer save is not valid JSON: " + error.message, "$");
-    }
+    if (typeof outerJsonText === "string") {
+      try {
+        outer = JSON.parse(outerJsonText);
+      } catch (error) {
+        return failure("INVALID_OUTER_JSON", "The outer save is not valid JSON: " + error.message, "$");
+      }
+    } else if (isPlainObject(outerJsonText)) outer = outerJsonText;
+    else return failure("INVALID_OUTER_JSON", "The outer save must be valid JSON data.", "$");
 
     if (!outer || typeof outer !== "object" || Array.isArray(outer) || !Object.prototype.hasOwnProperty.call(outer, "data")) {
       return failure("MISSING_DATA", "The outer save does not contain a data object.", "$.data");

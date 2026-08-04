@@ -327,7 +327,6 @@ BellOptimizer.jsonInspector = (function () {
   function initialize() {
     var fileInput = document.querySelector("#json-file"); var pasteArea = document.querySelector("#json-paste");
     fileInput.addEventListener("change", function () { if (fileInput.files.length) loadFile(fileInput.files[0]); });
-    pasteArea.addEventListener("change", function () { if (pasteArea.value.trim()) parseText(pasteArea.value, "pasted JSON"); });
     document.querySelector("#inspect-pasted-json").addEventListener("click", function () { parseText(pasteArea.value, "pasted JSON"); });
     document.querySelector("#run-json-search").addEventListener("click", function () { search(false); });
     document.querySelector("#search-parsed-holes").addEventListener("click", function () { search(true); });

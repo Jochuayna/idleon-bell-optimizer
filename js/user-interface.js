@@ -54,7 +54,7 @@ BellOptimizer.userInterface = (function () {
     addRateDetails("#normal-measurement-details",[["Ringing Measurement level",String(view.measurement.level)],["Measurement Cosmo level",String(view.measurement.cosmoLevel)],["Total Death Note points",view.measurement.deathNotePoints.toLocaleString()],["Measurement scaling","×"+String(view.measurement.scaling)],["Raw Measurement bonus percent","+"+String(view.measurement.rawBonusPercent)+"%"],["Final Measurement multiplier","×"+String(view.measurement.multiplier)]]);
     var methodRows=view.methods.levels.map(function(level,index){var method=BellOptimizer.BELL_METHODS[index];return ["Method "+index+" — "+method.effect+" • "+method.resourceName,"Level "+level.toLocaleString()];});methodRows.push(["Upgrade 45",view.methods.upgrade45Owned?"Owned":"Not owned"],["Bell Ring methods raw percent sum","+"+format(view.methods.rawPercent)+"%"],["Final Bell Ring Methods multiplier","×"+format(view.methods.multiplier)]);addRateDetails("#normal-method-details",methodRows);
     addRateDetails("#normal-jar11-details",[["Big Beef Rock Jar level",String(view.jars.jar11Level)],["Raw bonus","+"+String(view.jars.jar11RawPercent)+"%"],["Multiplier","×"+String(view.jars.jar11Multiplier)]]);addRateDetails("#normal-jar36-details",[["Twisted Rupie Jar level",String(view.jars.jar36Level)],["Raw bonus","+"+String(view.jars.jar36RawPercent)+"%"],["Multiplier","×"+String(view.jars.jar36Multiplier)]]);
-    try { normalBellRateUpgradeData=BellOptimizer.bellRateSection.buildUpgradePaths(result.data.bellRateUpgradeState);if(!normalBellRateUpgradeData.ok)throw new Error(normalBellRateUpgradeData.error||"Unknown optimizer error");var plans=normalBellRateUpgradeData.plans;document.querySelector("#normal-upgrade-paths-status").textContent="";document.querySelector("#normal-practical-plan").textContent=planSummary(plans.practicalPlan,normalBellRateUpgradeData.baselineRate);document.querySelector("#normal-maximum-plan").textContent=planSummary(plans.bellOnlyMaximum,normalBellRateUpgradeData.baselineRate);document.querySelector("#normal-search-warning").textContent=(plans.searchMethod==="exact"?"Exact within the current safety limit.":plans.searchMethod+" within the current safety limit.")+(plans.searchLimitWarning?" The result may improve if the search limit is increased.":"");renderPrimaryRateRecommendation();renderCandidateRows();
+    try { var generated=result.data.bellRateUpgradeCandidates;if(!generated||!generated.ok)throw new Error(generated&&generated.error||"Unknown candidate error");var plans={progressionAndRngOpportunities:generated.candidates};normalBellRateUpgradeData={ok:true,candidates:generated.candidates,baselineRate:generated.baselineRate,plans:null,state:result.data.bellRateUpgradeState,precomputedCandidates:generated,invalidCandidateWarnings:generated.candidates.filter(function(candidate){return candidate.validationValid===false;}).map(function(candidate){return {id:candidate.id,name:candidate.name,errors:candidate.validationErrors.slice()};})};document.querySelector("#normal-upgrade-paths-status").textContent="";document.querySelector("#normal-practical-plan").textContent="Open this section to calculate multi-upgrade plans.";document.querySelector("#normal-maximum-plan").textContent="Open this section to calculate multi-upgrade plans.";document.querySelector("#normal-search-warning").textContent="";renderPrimaryRateRecommendation();renderCandidateRows();
       var candidateWarnings=normalBellRateUpgradeData.invalidCandidateWarnings;if(candidateWarnings.length)document.querySelector("#normal-upgrade-paths-status").textContent=candidateWarnings.length+" invalid upgrade candidate"+(candidateWarnings.length===1?" was":"s were")+" excluded safely. Rate Breakdown and save import remain available.";
       function opportunityList(selector,items,formatter){var host=document.querySelector(selector);host.replaceChildren();var list=document.createElement("ul");items.forEach(function(item){var li=document.createElement("li");li.textContent=formatter(item);list.appendChild(li);});host.appendChild(list);}
       opportunityList("#normal-progression-opportunities",plans.progressionAndRngOpportunities.filter(function(c){return c.eligibilityCategory==="Progression targets";}),function(c){return c.name+": about "+Math.round(c.cost).toLocaleString()+" kills needed; projected Bell-rate gain +"+c.percentageRateGain.toFixed(4)+"%.";});opportunityList("#normal-rng-opportunities",plans.progressionAndRngOpportunities.filter(function(c){return c.eligibilityCategory==="RNG-dependent";}),function(c){var name=c.id==="jar-11"?"Big Beef Rock Jar next level":c.id==="jar-36"?"Twisted Rupie Jar next level":c.name;return name+(c.percentageRateGain==null?"":" — hypothetical +"+c.percentageRateGain.toFixed(4)+"%");});opportunityList("#normal-capped-sources",plans.progressionAndRngOpportunities.filter(function(c){return c.eligibilityCategory==="Capped";}),function(c){return c.name;});
@@ -70,11 +70,40 @@ BellOptimizer.userInterface = (function () {
 
   fileInput.addEventListener("change", function () {
     fileName.textContent = fileInput.files.length ? fileInput.files[0].name + " selected for local import or inspection" : "No file selected";
-    if (fileInput.files.length) importSource = "file";
+    if (fileInput.files.length) { importSource = "file"; importButton.disabled = false; }
   });
 
   pasteArea.addEventListener("input", function () {
-    if (pasteArea.value.trim()) importSource = "paste";
+    if (pasteArea.value.length) {
+      importSource = "paste";
+      importStatus.className = "import-status";
+      importStatus.textContent = "JSON ready to import.";
+      importButton.disabled = false;
+    }
+  });
+
+  document.querySelector("#normal-multi-upgrade-plans").addEventListener("toggle", function () {
+    var details=this;
+    if(!details.open||!normalBellRateUpgradeData||normalBellRateUpgradeData.plans||normalBellRateUpgradeData.loadingPlans)return;
+    var importData=normalBellRateUpgradeData;
+    importData.loadingPlans=true;
+    document.querySelector("#normal-practical-plan").textContent="Building upgrade pathsâ€¦";
+    document.querySelector("#normal-maximum-plan").textContent="Building upgrade pathsâ€¦";
+    setTimeout(function(){
+      try {
+        var completed=BellOptimizer.bellRateSection.buildUpgradePaths(importData.state,importData.precomputedCandidates);
+        if(normalBellRateUpgradeData!==importData)return;
+        if(!completed.ok)throw new Error(completed.error||"Unknown optimizer error");
+        importData.plans=completed.plans;
+        document.querySelector("#normal-practical-plan").textContent=planSummary(completed.plans.practicalPlan,completed.baselineRate);
+        document.querySelector("#normal-maximum-plan").textContent=planSummary(completed.plans.bellOnlyMaximum,completed.baselineRate);
+        document.querySelector("#normal-search-warning").textContent=(completed.plans.searchMethod==="exact"?"Exact within the current safety limit.":completed.plans.searchMethod+" within the current safety limit.")+(completed.plans.searchLimitWarning?" The result may improve if the search limit is increased.":"");
+      } catch(error) {
+        console.error("Bell multi-upgrade plans failed:",error);
+        document.querySelector("#normal-practical-plan").textContent="Multi-upgrade plans could not be calculated.";
+        document.querySelector("#normal-maximum-plan").textContent="";
+      } finally { importData.loadingPlans=false; }
+    },0);
   });
 
   function showImportError(text) {
@@ -505,7 +534,7 @@ BellOptimizer.userInterface = (function () {
     var promptOption=document.createElement("option"); promptOption.value=""; promptOption.textContent="Select the character that will spend coins"; characterSelect.appendChild(promptOption);
     result.data.bellRateCoinCharacters.forEach(function(character){var option=document.createElement("option");option.value=String(character.index);option.textContent=(character.index+1)+": "+character.name+" ("+numberFormat.format(character.coins)+" coins)";characterSelect.appendChild(option);});
     runButton.disabled=false;
-    var generatedPools=BellOptimizer.bellRateUpgradeCandidates.generate(importedBellRateState), uniquePools={};
+    var generatedPools=result.data.bellRateUpgradeCandidates, uniquePools={};
     constraintHost.replaceChildren();
     var constraintTable=document.createElement("table");constraintTable.className="candidate-table";constraintTable.innerHTML="<thead><tr><th>Resource</th><th>Owned</th><th>Disable</th><th>Max spend</th><th>Min reserve</th><th>Max %</th><th>Max levels</th></tr></thead><tbody></tbody>";
     if(generatedPools.ok)generatedPools.candidates.forEach(function(c){if(!c.resourcePoolId||!c.deterministicPurchase||uniquePools[c.resourcePoolId])return;uniquePools[c.resourcePoolId]=true;var row=document.createElement("tr");row.dataset.poolId=c.resourcePoolId;row.dataset.owned=String(c.ownedResource);row.innerHTML="<td></td><td></td><td><input type=\"checkbox\" data-constraint=\"disabled\"></td><td><input type=\"number\" min=\"0\" data-constraint=\"maximumAmount\"></td><td><input type=\"number\" min=\"0\" data-constraint=\"minimumReserve\"></td><td><input type=\"number\" min=\"0\" max=\"100\" data-constraint=\"maximumPercent\"></td><td><input type=\"number\" min=\"0\" data-constraint=\"maximumLevels\"></td>";row.children[0].textContent=c.costResource.name;row.children[1].textContent=Number.isFinite(c.ownedResource)?numberFormat.format(c.ownedResource):"Unresolved";constraintTable.tBodies[0].appendChild(row);});
@@ -620,6 +649,7 @@ BellOptimizer.userInterface = (function () {
     var rateIssues = Array.isArray(rateBreakdown.dependencyIssues) ? rateBreakdown.dependencyIssues : [];
     document.querySelector("#rate-breakdown-status").textContent = rateBreakdown.complete ? "Every dependency is verified for this import." : BellOptimizer.bellRateSection.buildBreakdown(result.data).error;
     var rateIssueHost=document.querySelector("#rate-dependency-issues");rateIssueHost.replaceChildren();rateIssues.forEach(function(issue){var row=document.createElement("div");row.className="rate-dependency-issue";[issue.dependency,issue.status,issue.reason].forEach(function(text,index){var node=document.createElement(index===0?"strong":"span");node.textContent=text;row.appendChild(node);});rateIssueHost.appendChild(row);});
+    if (BellOptimizer.developerMode && BellOptimizer.developerMode.enabled) {
     document.querySelector("#rate-source-details").textContent = JSON.stringify({ KLAPaths: result.data.killsLeftArrayPaths, RiftLevelPath: result.data.riftLevelPath, RiftLevel: result.data.riftLevel, MonumentInputs: result.data.ringingRateInputPaths, MonumentSlot9BonusPercent: rateBreakdown.monumentSlot9BonusPercent, MonumentCosmoBonusPercent: rateBreakdown.monumentCosmoBonusPercent, MonumentFountainBonusPercent: rateBreakdown.monumentFountainBonusPercent, MonumentReward7BonusPercent: rateBreakdown.monumentReward7BonusPercent, MeasurementCosmoBonusPercent: rateBreakdown.measurementCosmoBonusPercent, OverkillQuantities: rateBreakdown.overkillQuantities, MeasurementQuantityFound: rateBreakdown.measurementQuantityFound, MeasurementMulti: rateBreakdown.measurementMulti, MeasurementBaseBonus: rateBreakdown.measurementBaseBonus, MeasurementBonusPercent: rateBreakdown.measurementBonusPercent }, null, 2);
     var candidateResult = result.data.bellRateUpgradeCandidates;
     var candidateBody = document.querySelector("#bell-rate-candidates-body");
@@ -641,6 +671,7 @@ BellOptimizer.userInterface = (function () {
       candidateBody.appendChild(row);
     });
     document.querySelector("#bell-rate-candidate-source-details").textContent = candidateResult.ok ? JSON.stringify(candidateResult.candidates.map(function (candidate) { return { id:candidate.id, system:candidate.system, levelPath:candidate.levelPath, effectFormula:candidate.effectFormula, costFormula:candidate.costFormula, currentLevel:candidate.currentLevel, nextLevel:candidate.nextLevel, currentEffect:candidate.currentEffect, nextLevelEffect:candidate.nextLevelEffect, cost:candidate.cost, costResource:candidate.costResource, ownedResource:candidate.ownedResource, affordableNow:candidate.affordableNow, prerequisite:candidate.prerequisite, currentTotalBellExpPerHour:candidate.currentTotalBellExpPerHour, projectedBellExpPerHour:candidate.projectedBellExpPerHour, absoluteRateGain:candidate.absoluteRateGain, percentageRateGain:candidate.percentageRateGain, projectedFreshRingAfter2Hours:candidate.projectedFreshRingAfter2Hours, additionalBellRollsAfter2Hours:candidate.additionalBellRollsAfter2Hours, status:candidate.status, complete:candidate.complete }; }), null, 2) : "Candidate inputs are incomplete.";
+    }
     document.querySelector("#raw-jar-11").textContent = String(result.data.jar11Level);
     document.querySelector("#raw-jar-36").textContent = String(result.data.jar36Level);
     document.querySelector("#raw-jar-talent").textContent = String(result.data.jarLegendTalentLevel);
@@ -690,31 +721,42 @@ BellOptimizer.userInterface = (function () {
   }
 
   function runImportText(text) {
-    return BellOptimizer.saveImportWorkflow.run(text, {
+    importButton.disabled = true;
+    importStatus.className = "import-status";
+    importStatus.textContent = "Importing save...";
+    return BellOptimizer.saveImportWorkflow.runDeferred(text, {
       parseSave:function(value){return BellOptimizer.saveParsing.parseBellRewardLevels(value);},
-      render:function(result){importFromText(text,result);},
+      render:function(result){importStatus.textContent="Calculating rates...";importFromText(null,result);},
+      onProgress:function(message){importStatus.textContent=message+"...";},
       onError:function(stage,error){console.error("IdleOn save import failed:",error);showImportError("Save import failed — "+stage+": "+BellOptimizer.saveImportWorkflow.safeMessage(error));}
-    });
+    }).finally(function(){text=null;importButton.disabled=false;});
   }
 
   BellOptimizer.saveImportWorkflow.attach(importButton, function () {
     try {
+      importButton.disabled = true;
+      importStatus.className = "import-status";
+      importStatus.textContent = "Reading save...";
       if (importSource === "file" && fileInput.files.length) {
         var reader = new FileReader();
         reader.onload = function () { runImportText(String(reader.result)); };
+        reader.addEventListener("error",function(){importButton.disabled=false;});
         reader.onerror = function () { var error=new Error("The selected file could not be read.");console.error("IdleOn save import failed:",error);showImportError("Save import failed — Reading input: "+error.message); };
         reader.readAsText(fileInput.files[0]); return;
       }
-      if (importSource === "paste" && pasteArea.value.trim()) { runImportText(pasteArea.value); return; }
+      if (importSource === "paste" && pasteArea.value.length) { runImportText(pasteArea.value); return; }
       if (fileInput.files.length) {
         var fallbackReader = new FileReader();
         fallbackReader.onload = function () { runImportText(String(fallbackReader.result)); };
+        fallbackReader.addEventListener("error",function(){importButton.disabled=false;});
         fallbackReader.onerror = function () { var error=new Error("The selected file could not be read.");console.error("IdleOn save import failed:",error);showImportError("Save import failed — Reading input: "+error.message); };
         fallbackReader.readAsText(fileInput.files[0]); return;
       }
-      if (pasteArea.value.trim()) { runImportText(pasteArea.value); return; }
+      if (pasteArea.value.length) { runImportText(pasteArea.value); return; }
       showImportError("Save import failed — Reading input: Select a JSON file or paste JSON before importing.");
+      importButton.disabled=false;
     } catch (error) {
+      importButton.disabled=false;
       console.error("IdleOn save import failed:", error);
       showImportError("Save import failed — Reading input: "+BellOptimizer.saveImportWorkflow.safeMessage(error));
     }

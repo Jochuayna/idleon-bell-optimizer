@@ -16,8 +16,8 @@ BellOptimizer.bellRateSection = (function () {
     return before.ok&&after.ok?after.ringsCompleted-before.ringsCompleted:null;
   }
 
-  function buildUpgradePaths(state) {
-    var candidates=BellOptimizer.bellRateUpgradeCandidates.generate(state);
+  function buildUpgradePaths(state, precomputedCandidates) {
+    var candidates=precomputedCandidates&&precomputedCandidates.ok?precomputedCandidates:BellOptimizer.bellRateUpgradeCandidates.generate(state);
     if(!candidates.ok)return candidates;
     var plans=BellOptimizer.bellRateOptimizer.comparePlans(state,{mode:"practical",objective:"highest-rate",searchSafetyLimit:10,minimumPracticalRateGainPercent:.25});
     if(!plans.ok)return plans;
