@@ -34,8 +34,9 @@ BellOptimizer.saveComparison = (function () {
     var outer;
     try { outer = JSON.parse(text); }
     catch (error) { return { ok: false, message: "Invalid outer JSON: " + error.message }; }
-    if (!outer || typeof outer !== "object" || !outer.data || typeof outer.data !== "object") return { ok: false, message: "Missing data object." };
-    var holesResult = BellOptimizer.saveParsing.parseHolesField(outer.data);
+    var envelope = BellOptimizer.saveParsing.normalizeSaveEnvelope(outer);
+    if (!envelope.ok) return { ok:false, message:envelope.error.message };
+    var holesResult = BellOptimizer.saveParsing.parseHolesField(envelope.data);
     if (!holesResult.ok) return { ok: false, message: holesResult.error.message };
     return { ok: true, value: holesResult.value };
   }

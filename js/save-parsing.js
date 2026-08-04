@@ -17,6 +17,23 @@ BellOptimizer.saveParsing = (function () {
     return prototype === Object.prototype || prototype === null;
   }
 
+  function hasSupportedNestedShape(value) {
+    return typeof value === "string" && value.trim() !== "" || Array.isArray(value) || isPlainObject(value);
+  }
+
+  function normalizeSaveEnvelope(root) {
+    if (!isPlainObject(root)) return failure("INVALID_SAVE_ENVELOPE", "This JSON does not contain a valid IdleOn save object.", "$");
+    var hasDataProperty = Object.prototype.hasOwnProperty.call(root, "data");
+    if (hasDataProperty && isPlainObject(root.data)) {
+      return { ok:true, data:root.data, envelopeType:"wrapped-data", dataPath:"$.data" };
+    }
+    var keys = Object.keys(root);
+    var hasKla = keys.some(function (key) { return /^KLA_\d+$/.test(key) && hasSupportedNestedShape(root[key]); });
+    var hasRequiredMarkers = hasSupportedNestedShape(root.Holes) && hasSupportedNestedShape(root.Spelunk) && (Array.isArray(root.Rift) || isPlainObject(root.Rift)) && hasKla;
+    if (!hasRequiredMarkers) return failure(hasDataProperty ? "INVALID_SAVE_DATA_OBJECT" : "UNSUPPORTED_SAVE_ENVELOPE", "This JSON does not appear to contain a complete IdleOn save.", hasDataProperty ? "$.data" : "$");
+    return { ok:true, data:root, envelopeType:"direct-root", dataPath:"$" };
+  }
+
   function parseNestedSaveField(container, fieldName, options) {
     options = options || {};
     var path = options.path || "$.data." + fieldName;
@@ -58,17 +75,14 @@ BellOptimizer.saveParsing = (function () {
     } else if (isPlainObject(outerJsonText)) outer = outerJsonText;
     else return failure("INVALID_OUTER_JSON", "The outer save must be valid JSON data.", "$");
 
-    if (!outer || typeof outer !== "object" || Array.isArray(outer) || !Object.prototype.hasOwnProperty.call(outer, "data")) {
-      return failure("MISSING_DATA", "The outer save does not contain a data object.", "$.data");
-    }
-    if (!outer.data || typeof outer.data !== "object" || Array.isArray(outer.data)) {
-      return failure("MISSING_DATA", "The outer save does not contain a valid data object.", "$.data");
-    }
-    var holesResult = parseHolesField(outer.data);
+    var envelope = normalizeSaveEnvelope(outer);
+    if (!envelope.ok) return envelope;
+    var data = envelope.data;
+    var holesResult = parseHolesField(data);
     if (!holesResult.ok) return holesResult;
     var holes = holesResult.value;
 
-    var spelunkResult = parseSpelunkField(outer.data);
+    var spelunkResult = parseSpelunkField(data);
     if (!spelunkResult.ok) return spelunkResult;
     var spelunk = spelunkResult.value;
 
@@ -296,18 +310,18 @@ BellOptimizer.saveParsing = (function () {
       measurementCosmoLevel: optionalNestedNumber(holes, [5, 3], "$.data.Holes::parsed"),
       measurementLevel: optionalNestedNumber(holes, [22, 2], "$.data.Holes::parsed")
     };
-    var klaKeys = Object.keys(outer.data).filter(function (key) { return /^KLA_\d+$/.test(key); }).sort(function (a, b) { return Number(a.slice(4)) - Number(b.slice(4)); });
+    var klaKeys = Object.keys(data).filter(function (key) { return /^KLA_\d+$/.test(key); }).sort(function (a, b) { return Number(a.slice(4)) - Number(b.slice(4)); });
     var killsLeftArrays = []; var klaPaths = []; var klaError = null;
     if (!klaKeys.length) klaError = "No data.KLA_n character arrays were found.";
     klaKeys.forEach(function (key) {
       if (klaError) return;
       var rootPath = "$.data." + key; var path = rootPath + "::parsed";
-      var klaResult = parseNestedSaveField(outer.data, key, { path:rootPath, parsedPath:path, codeName:"DATA_" + key });
+      var klaResult = parseNestedSaveField(data, key, { path:rootPath, parsedPath:path, codeName:"DATA_" + key });
       if (!klaResult.ok) { klaError = klaResult.error.message + " Path: " + klaResult.error.path; return; }
       if (!Array.isArray(klaResult.value)) { klaError = path + " is not an array."; return; }
       killsLeftArrays.push(klaResult.value); klaPaths.push(path);
     });
-    var riftLevelResult = optionalNestedNumber(outer.data, ["Rift", 0], "$.data");
+    var riftLevelResult = optionalNestedNumber(data, ["Rift", 0], "$.data");
     var overkillDetails = !klaError && riftLevelResult.ok ? BellOptimizer.bellMechanics.calculateOverkillQuantities(killsLeftArrays, riftLevelResult.value) : { ok: false, error: klaError || "Missing or invalid Rift level at $.data.Rift[0]." };
     var unresolvedRateDependencies = Object.keys(rateInputs).filter(function (name) { return !rateInputs[name].ok; }).map(function (name) { return name + " at " + rateInputs[name].path; });
     if (!overkillDetails.ok) unresolvedRateDependencies.push("OverkillQTY(0..6): " + overkillDetails.error);
@@ -344,8 +358,8 @@ BellOptimizer.saveParsing = (function () {
       return numericLike(current);
     }
     var gemItems = null;
-    if (Object.prototype.hasOwnProperty.call(outer.data, "GemItemsPurchased")) {
-      var gemItemsResult = parseNestedSaveField(outer.data, "GemItemsPurchased", { path:"$.data.GemItemsPurchased", parsedPath:"$.data.GemItemsPurchased::parsed", codeName:"DATA_GEM_ITEMS_PURCHASED" });
+    if (Object.prototype.hasOwnProperty.call(data, "GemItemsPurchased")) {
+      var gemItemsResult = parseNestedSaveField(data, "GemItemsPurchased", { path:"$.data.GemItemsPurchased", parsedPath:"$.data.GemItemsPurchased::parsed", codeName:"DATA_GEM_ITEMS_PURCHASED" });
       if (gemItemsResult.ok) gemItems = gemItemsResult.value;
     }
     var cosmoArrays = [holes[4], holes[5], holes[6]];
@@ -356,7 +370,7 @@ BellOptimizer.saveParsing = (function () {
     var measurementCostReductionMarbleMultiplier = measurementCostReductionMarble === 0 ? 1 : 1.5 + 0.5 * measurementCostReductionMarble;
     var characterNames = Array.isArray(outer.charNames) ? outer.charNames.slice() : [];
     var coinCharacters = characterNames.map(function (name, index) {
-      return { index:index, name:String(name || ("Character " + (index + 1))), path:"$.data.Money_" + index, coins:numericLike(outer.data["Money_" + index]) };
+      return { index:index, name:String(name || ("Character " + (index + 1))), path:"$.data.Money_" + index, coins:numericLike(data["Money_" + index]) };
     }).filter(function (character) { return typeof character.coins === "number" && Number.isFinite(character.coins) && character.coins >= 0; });
     var bellRateUpgradeState = {
       rateInputs: {
@@ -370,7 +384,7 @@ BellOptimizer.saveParsing = (function () {
       },
       bellMethodLevels: bellMethodDetails.bellMethodLevels.slice(), upgrade45Owned: bellMethodDetails.upgrade45Owned,
       bellMethodsOwned: Math.min(6, (atNumeric(holes, [18, 5]) || 0) + 1),
-      methodOwnedResources: [null, atNumeric(holes,[9,3]), atNumeric(outer.data,["Gaming",0]), atNumeric(holes,[9,14]), atNumeric(outer.data,["Divinity",39]), atNumeric(holes,[9,25])],
+      methodOwnedResources: [null, atNumeric(holes,[9,3]), atNumeric(data,["Gaming",0]), atNumeric(holes,[9,14]), atNumeric(data,["Divinity",39]), atNumeric(holes,[9,25])],
       jar11Level: jar11.value, jar36Level: jar36.value, jarLegendTalentLevel: jarLegendTalent.value,
       overkillQuantities: overkillDetails.ok ? overkillDetails.overkillQuantities.slice() : [], overkillDetails: overkillDetails,
       cosmoPointsLeft: cosmoPointsLeft, cosmoMaxLevels: [[3,4,2,4,4,1,1,1,1],[4,3,2,3,4,3,1,1,1,1,1,1],[1,4,2,4,3,4,1,1,1,1,1,1]],
@@ -486,5 +500,5 @@ BellOptimizer.saveParsing = (function () {
     };
   }
 
-  return { status: "confirmed-bell-fields-import", RENEWAL_COST: RENEWAL_COST, calculateNextRingRequiredExp: calculateNextRingRequiredExp, parseNestedSaveField: parseNestedSaveField, parseHolesField: parseHolesField, parseSpelunkField: parseSpelunkField, parseBellRewardLevels: parseBellRewardLevels };
+  return { status: "confirmed-bell-fields-import", RENEWAL_COST: RENEWAL_COST, calculateNextRingRequiredExp: calculateNextRingRequiredExp, normalizeSaveEnvelope: normalizeSaveEnvelope, parseNestedSaveField: parseNestedSaveField, parseHolesField: parseHolesField, parseSpelunkField: parseSpelunkField, parseBellRewardLevels: parseBellRewardLevels };
 }());

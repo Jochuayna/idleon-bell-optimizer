@@ -7,6 +7,7 @@ BellOptimizer.saveImportWorkflow = (function () {
     if (typeof error === "string") return error.slice(0, 300);
     return String(error.message || error).slice(0, 300);
   }
+  var PUBLIC_SAVE_GUIDANCE = "This JSON does not appear to contain a complete IdleOn save. Use IdleOn Toolbox's Copy for Support or a raw-data export.";
   function run(text, handlers) {
     var stage="Parsing JSON";
     try {
@@ -14,7 +15,7 @@ BellOptimizer.saveImportWorkflow = (function () {
       stage="Parsing IdleOn save";
       var result=handlers.parseSave(outer);
       outer=null;
-      if(!result||!result.ok){var parserError=result&&result.error,publicNestedFormatError=parserError&&typeof parserError.path==="string"&&parserError.path.indexOf("$.data.")===0;throw new Error(parserError?(publicNestedFormatError?"This save contains Idleon data in an unsupported or incomplete format. Try exporting a fresh JSON save.":parserError.message+(parserError.path?" Path: "+parserError.path:"")):"The save parser returned no result.");}
+      if(!result||!result.ok){throw new Error(PUBLIC_SAVE_GUIDANCE);}
       stage="Rendering imported data";
       handlers.render(result);
       return {ok:true,result:result};
@@ -36,5 +37,5 @@ BellOptimizer.saveImportWorkflow = (function () {
     if(!button||typeof button.addEventListener!=="function")return false;
     button.addEventListener("click",listener);return true;
   }
-  return {run:run,runDeferred:runDeferred,attach:attach,safeMessage:safeMessage};
+  return {run:run,runDeferred:runDeferred,attach:attach,safeMessage:safeMessage,PUBLIC_SAVE_GUIDANCE:PUBLIC_SAVE_GUIDANCE};
 }());
