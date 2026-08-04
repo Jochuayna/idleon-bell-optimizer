@@ -60,9 +60,9 @@
 
       <section id="bell-rate-section" class="panel bell-rate-section" aria-labelledby="bell-rate-title">
         <div class="section-heading"><div><p class="section-number">Imported account</p><h2 id="bell-rate-title">Bell Rate</h2></div></div>
-        <div class="bell-rate-tabs" role="tablist" aria-label="Bell Rate views"><button id="bell-rate-breakdown-tab" type="button" role="tab" aria-selected="true" aria-controls="bell-rate-breakdown-panel">Rate Breakdown</button><button id="bell-rate-upgrades-tab" type="button" role="tab" aria-selected="false" aria-controls="bell-rate-upgrades-panel">Upgrade Paths</button><button id="bell-rate-history-tab" type="button" role="tab" aria-selected="false" aria-controls="bell-rate-history-panel">Progress History</button></div>
+        <div class="bell-rate-tabs" role="tablist" aria-label="Bell Rate views"><button id="bell-rate-breakdown-tab" type="button" role="tab" aria-selected="true" aria-controls="bell-rate-breakdown-panel">Rate Breakdown</button><button id="bell-rate-upgrades-tab" type="button" role="tab" aria-selected="false" aria-controls="bell-rate-upgrades-panel">Upgrade Paths</button><button id="bell-rate-benchmark-tab" type="button" role="tab" aria-selected="false" aria-controls="bell-rate-benchmark-panel">Compare Accounts</button><button id="bell-rate-history-tab" type="button" role="tab" aria-selected="false" aria-controls="bell-rate-history-panel">Progress History</button></div>
         <div id="bell-rate-breakdown-panel" role="tabpanel" aria-labelledby="bell-rate-breakdown-tab">
-          <div class="bell-rate-hero"><span>Current Bell Rate</span><strong id="normal-bell-rate">—</strong><small id="normal-bell-rate-exact" class="visually-hidden"></small></div>
+          <div class="bell-rate-hero"><span>Current Bell Rate</span><strong id="normal-bell-rate">—</strong><small id="normal-bell-rate-exact" class="visually-hidden"></small><button id="benchmark-shortcut" type="button" class="secondary-button benchmark-shortcut">Compare against another account</button></div>
           <div class="rate-stack"><div class="rate-stack-heading"><strong>Bell Rate Breakdown</strong><strong id="normal-rate-total">—</strong></div><div class="rate-factor"><span>Base Bell Rate</span><strong id="normal-rate-base">10 EXP/hr</strong></div>
             <details class="rate-factor-details"><summary><span>Monument</span><strong id="normal-rate-monument">—</strong></summary><div id="normal-monument-details" class="rate-detail-grid"></div></details>
             <details class="rate-factor-details"><summary><span>Measurement — Monster Kills / Death Note</span><strong id="normal-rate-measurement">—</strong></summary><div id="normal-measurement-details" class="rate-detail-grid"></div></details>
@@ -81,7 +81,20 @@
           <section class="upgrade-path-block"><h3>6. RNG-dependent opportunities</h3><div id="normal-rng-opportunities"></div><p class="muted">These cannot be targeted through a guaranteed direct purchase.</p></section>
           <section class="upgrade-path-block"><h3>7. Capped sources</h3><div id="normal-capped-sources"></div><p class="muted">Capped sources are not included in upgrade recommendations.</p></section>
         </div>
+        <div id="bell-rate-benchmark-panel" role="tabpanel" aria-labelledby="bell-rate-benchmark-tab" hidden>
+          <p class="privacy-notice">Save data is processed locally in your browser and is not stored as Personal History.</p>
+          <p id="benchmark-empty-state" class="empty-state">Import your own save first, then add another account to compare.</p>
+          <div class="benchmark-session-bar"><label><span>Account alias</span><input id="benchmark-alias" type="text" maxlength="120" value="Benchmark Account"></label><div class="action-row"><button id="benchmark-clear-button" type="button" class="secondary-button">Clear Benchmark</button></div></div>
+          <details id="benchmark-replace-controls" class="upgrade-path-block benchmark-import-panel" open><summary><strong>Import or replace benchmark</strong></summary><div class="benchmark-import-grid"><label class="upload-label"><strong>Choose JSON file</strong><input id="benchmark-file" type="file" accept=".json,application/json"><span id="benchmark-file-name" class="file-name">No file selected</span></label><label><span>Benchmark JSON</span><textarea id="benchmark-json-paste" rows="5" placeholder="Paste benchmark JSON here..."></textarea></label></div><div class="action-row"><button id="benchmark-import-button" type="button" class="primary-action">Import Benchmark</button></div><p id="benchmark-import-status" class="import-status" role="status" aria-live="polite"></p></details>
+          <div id="benchmark-results" hidden>
+            <section id="benchmark-overall-summary" class="upgrade-path-block benchmark-summary-card"><h3>Overall Ring comparison</h3><div class="benchmark-summary-grid"><div><span>My Ring rate</span><strong id="benchmark-summary-my-ring">—</strong></div><div><span>Benchmark Ring rate</span><strong id="benchmark-summary-their-ring">—</strong></div><div><span>Difference</span><strong id="benchmark-summary-ring-gap">—</strong></div><div><span>Largest individual opportunity</span><strong id="benchmark-summary-largest">—</strong></div><div><span>All verified factors matched</span><strong id="benchmark-summary-full-ring">—</strong></div></div><p id="benchmark-summary-copy" class="muted"></p></section>
+            <section class="upgrade-path-block"><h3>Largest opportunities</h3><p class="muted">Each individual result starts from your current account. Combined results are recalculated with those factors matched together, so the individual gains should not be added.</p><div id="benchmark-rankings" class="benchmark-ranking-grid"></div></section>
+            <section class="upgrade-path-block"><h3>Rate comparison</h3><div class="candidate-table-wrap"><table class="candidate-table"><thead><tr><th>Rate</th><th>My Account</th><th>Benchmark</th><th>Difference</th></tr></thead><tbody id="benchmark-rate-body"></tbody></table></div></section>
+            <section class="upgrade-path-block"><h3>Detailed top-level factors</h3><div class="candidate-table-wrap"><table class="candidate-table benchmark-factor-table"><thead><tr><th>Factor</th><th>My value</th><th>Benchmark value</th><th>Gap</th><th>My rate if matched</th></tr></thead><tbody id="benchmark-factor-body"></tbody></table></div></section>
+          </div>
+        </div>
         <div id="bell-rate-history-panel" role="tabpanel" aria-labelledby="bell-rate-history-tab" hidden>
+          <div id="personal-history-content">
           <p class="privacy-notice">Bell History stays in this browser. Full Idleon saves are processed locally and are not retained or uploaded.</p>
           <div class="method-overview-grid"><div><span>Storage</span><strong id="bell-history-storage-state">Checking local history…</strong></div><div><span>Capacity</span><strong id="bell-history-count">Stored snapshots: 0 / 100</strong></div></div>
           <p id="bell-history-protocol" class="muted"></p><p id="bell-history-status" class="import-status" role="status"></p>
@@ -90,6 +103,7 @@
           <section class="upgrade-path-block"><h3>Saved snapshots</h3><div class="candidate-table-wrap"><table class="candidate-table history-table"><thead><tr><th>Date</th><th>Label</th><th>Bell Ring</th><th>Bell Ping</th><th>Bell Clean</th><th>Ring change</th><th>Actions</th></tr></thead><tbody id="bell-history-body"></tbody></table></div><div id="bell-history-details" class="history-details empty-state"></div></section>
           <section class="upgrade-path-block"><h3>Compare two snapshots</h3><div class="simple-target-grid"><label><span>Earlier snapshot</span><select id="history-earlier"></select></label><label><span>Later snapshot</span><select id="history-later"></select></label></div><button id="history-compare" type="button" disabled>Compare Snapshots</button><div id="history-comparison-output" class="history-comparison-output empty-state"></div></section>
           <section class="upgrade-path-block history-utility-panel"><h3>Backup and privacy</h3><button id="export-bell-history" type="button" class="secondary-button">Export History</button><label class="secondary-button"><span>Restore History</span><input id="restore-bell-history-file" type="file" accept=".json,application/json" hidden></label><button id="clear-bell-history" type="button" class="destructive-button">Delete All History</button><details><summary>Local storage and privacy details</summary><p class="muted">GitHub does not receive Bell snapshots. Browser profiles keep separate history, history does not sync to another browser or device, and clearing site data can remove it. Export a backup before clearing browser data. IndexedDB persistence under file:// varies by browser; GitHub Pages or localhost is more reliable.</p></details></section>
+          </div>
         </div>
       </section>
 
@@ -584,6 +598,9 @@
   <script src="js/bell-history-import.js"></script>
   <script src="js/bell-history-section.js"></script>
   <script src="js/bell-history-presentation.js"></script>
+  <script src="js/bell-benchmark-snapshot.js"></script>
+  <script src="js/bell-benchmark-comparison.js"></script>
+  <script src="js/bell-benchmark-section.js"></script>
   <script src="js/developer-mode.js"></script>
   <script src="js/save-import-workflow.js"></script>
   <script src="js/save-parsing.js"></script>

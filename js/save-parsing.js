@@ -64,7 +64,8 @@ BellOptimizer.saveParsing = (function () {
     return parseNestedSaveField(data, "Spelunk", { path: "$.data.Spelunk", parsedPath: "$.data.Spelunk::parsed", codeName: "DATA_SPELUNK", missingCode: "MISSING_DATA_SPELUNK", emptyCode: "EMPTY_DATA_SPELUNK", invalidSerializedCode: "INVALID_SERIALIZED_SPELUNK_JSON", unsupportedTypeCode: "UNSUPPORTED_DATA_SPELUNK_TYPE", invalidStructureCode: "INVALID_DATA_SPELUNK_STRUCTURE" });
   }
 
-  function parseBellRewardLevels(outerJsonText) {
+  function parseBellRewardLevels(outerJsonText, options) {
+    options=options||{};
     var outer;
     if (typeof outerJsonText === "string") {
       try {
@@ -395,7 +396,7 @@ BellOptimizer.saveParsing = (function () {
     };
     bellRateUpgradeState.coinCharacters = coinCharacters;
     bellRateUpgradeState.activeCharacterIndex = null;
-    var bellRateUpgradeCandidates = ringingRateBreakdown.complete && BellOptimizer.bellRateUpgradeCandidates ? BellOptimizer.bellRateUpgradeCandidates.generate(bellRateUpgradeState) : { ok:false, candidates:[] };
+    var bellRateUpgradeCandidates = !options.skipCandidates && ringingRateBreakdown.complete && BellOptimizer.bellRateUpgradeCandidates ? BellOptimizer.bellRateUpgradeCandidates.generate(bellRateUpgradeState) : { ok:false, skipped:!!options.skipCandidates, candidates:[] };
     var bellActivityRates = ringingRateBreakdown.complete ? BellOptimizer.bellMechanics.calculateBellActivityRates({ bellMethodQuantities:bellMethodDetails.bellMethodQuantities, monumentMultiplier:ringingRateBreakdown.monumentMultiplier, measurementMultiplier:ringingRateBreakdown.measurementMultiplier, jar11Multiplier:ringingRateBreakdown.jar11Multiplier, jar36Multiplier:ringingRateBreakdown.jar36Multiplier }) : { ok:false, error:"Automatic Bell activity rates require a complete verified Ring reconstruction." };
 
     var rewards = values.map(function (value, index) {

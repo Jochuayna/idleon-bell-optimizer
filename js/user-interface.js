@@ -709,6 +709,7 @@ BellOptimizer.userInterface = (function () {
     refreshProbabilityPreview();
     refreshRewardSelectionPreview();
     refreshCurrentRunDistribution();
+    BellOptimizer.bellBenchmarkSection.setActiveAccount(result.data);
     try { renderNormalBellRate(result); } catch (error) { console.error("Bell Rate section failed to render:",error);document.querySelector("#bell-rate-section").hidden=false;document.querySelector("#normal-rate-status").textContent="Bell Rate breakdown could not be displayed."; }
     try { BellOptimizer.bellHistorySection.setCurrent(result.data).catch(function(error){console.error("Bell Progress History could not use the current import:",error);}); } catch (error) { console.error("Bell Progress History could not use the current import:",error); }
     try {
@@ -803,14 +804,17 @@ BellOptimizer.userInterface = (function () {
   });
 
   function selectBellRateTab(tabName) {
-    var breakdown=tabName==="breakdown",upgrades=tabName==="upgrades",history=tabName==="history";document.querySelector("#bell-rate-breakdown-tab").setAttribute("aria-selected",String(breakdown));document.querySelector("#bell-rate-upgrades-tab").setAttribute("aria-selected",String(upgrades));document.querySelector("#bell-rate-history-tab").setAttribute("aria-selected",String(history));document.querySelector("#bell-rate-breakdown-panel").hidden=!breakdown;document.querySelector("#bell-rate-upgrades-panel").hidden=!upgrades;document.querySelector("#bell-rate-history-panel").hidden=!history;if(history)BellOptimizer.bellHistorySection.refresh();
+    var breakdown=tabName==="breakdown",upgrades=tabName==="upgrades",benchmark=tabName==="benchmark",history=tabName==="history";document.querySelector("#bell-rate-breakdown-tab").setAttribute("aria-selected",String(breakdown));document.querySelector("#bell-rate-upgrades-tab").setAttribute("aria-selected",String(upgrades));document.querySelector("#bell-rate-benchmark-tab").setAttribute("aria-selected",String(benchmark));document.querySelector("#bell-rate-history-tab").setAttribute("aria-selected",String(history));document.querySelector("#bell-rate-breakdown-panel").hidden=!breakdown;document.querySelector("#bell-rate-upgrades-panel").hidden=!upgrades;document.querySelector("#bell-rate-benchmark-panel").hidden=!benchmark;document.querySelector("#bell-rate-history-panel").hidden=!history;if(benchmark)BellOptimizer.bellBenchmarkSection.open();if(history)BellOptimizer.bellHistorySection.refresh();
   }
   document.querySelector("#bell-rate-breakdown-tab").addEventListener("click",function(){selectBellRateTab("breakdown");});
   document.querySelector("#bell-rate-upgrades-tab").addEventListener("click",function(){selectBellRateTab("upgrades");});
+  document.querySelector("#bell-rate-benchmark-tab").addEventListener("click",function(){selectBellRateTab("benchmark");});
   document.querySelector("#bell-rate-history-tab").addEventListener("click",function(){selectBellRateTab("history");});
+  document.querySelector("#benchmark-shortcut").addEventListener("click",function(){selectBellRateTab("benchmark");});
   document.querySelectorAll(".rate-factor-details").forEach(function(details){var summary=details.querySelector("summary");function syncExpanded(){summary.setAttribute("aria-expanded",String(details.open));}syncExpanded();details.addEventListener("toggle",syncExpanded);});
   try { BellOptimizer.bellHistorySection.bind();BellOptimizer.bellHistorySection.initialize().catch(function(error){console.error("Bell Progress History initialization failed:",error);}); } catch(error) { console.error("Bell Progress History controls failed to initialize:",error); }
   try { BellOptimizer.bellHistoryPresentation.initialize(); } catch(error) { console.error("Bell Progress History presentation failed to initialize:",error); }
+  try { BellOptimizer.bellBenchmarkSection.bind(); } catch(error) { console.error("Benchmark Compare controls failed to initialize:",error); }
   document.querySelector("#normal-candidate-affordable-first").addEventListener("change",renderCandidateRows);
   document.querySelectorAll(".bell-stat-filter-button").forEach(function(button){button.addEventListener("click",function(){selectedBellStat=button.dataset.bellStat;document.querySelectorAll(".bell-stat-filter-button").forEach(function(item){var selected=item===button;item.classList.toggle("selected",selected);item.setAttribute("aria-pressed",String(selected));});renderPrimaryRateRecommendation();renderCandidateRows();});});
 
