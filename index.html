@@ -163,6 +163,12 @@
           <button type="button" class="goal-preset" data-goal="Double Torch Chance" data-reward-index="5" aria-pressed="false"><strong>Double Torch Chance</strong><span class="run-reward-level">—</span></button>
           <button type="button" class="goal-preset selected" data-goal="Coins From Fountain" data-reward-index="6" aria-pressed="true"><strong>Coins From Fountain</strong><span class="run-reward-level">—</span></button>
         </div>
+        <div id="run-rate-scenario" class="run-rate-scenario">
+          <label for="future-ring-rate"><strong>Future Ring Rate</strong><span>See whether this run is worth continuing if your Ring Rate increases from now on.</span></label>
+          <div class="run-rate-scenario-controls"><input id="future-ring-rate" type="text" inputmode="decimal" autocomplete="off" placeholder="Example: 1.2QQ"><button id="apply-future-ring-rate" type="button">Apply</button><button id="clear-future-ring-rate" type="button" class="secondary-button" hidden>Use imported rate</button></div>
+          <p id="future-ring-rate-status" class="field-help" role="status" aria-live="polite">Optional. Uses the same projected rate for continuing and for a fresh run.</p>
+          <p id="run-scenario-active" class="run-scenario-active" hidden><strong>Run scenario active</strong><span>Future Ring Rate: <b id="run-scenario-active-rate">—</b>/hr</span></p>
+        </div>
       </section>
 
       <section id="run-forecast-hero" class="panel run-forecast-hero" data-tier="waiting" aria-labelledby="run-forecast-reward">
@@ -213,6 +219,7 @@
         <summary><strong>Show Advanced Details</strong></summary>
         <div class="advanced-content">
         <header class="expert-console-heading"><div><p class="section-number">Expert console</p><h2>Verified Bell analysis</h2></div><div class="expert-status-badges"><span>Imported</span><span>Derived</span><span>Verified</span></div></header>
+        <section id="run-scenario-advanced" class="advanced-section run-scenario-advanced" hidden><div class="output-heading"><div><p class="section-number">Run scenario</p><h2>Projected Ring Rate</h2></div></div><div class="ringing-progress-grid"><div><span>Imported Ring Rate</span><strong id="run-scenario-imported-rate">—</strong></div><div><span>Scenario Future Ring Rate</span><strong id="run-scenario-future-rate">—</strong></div></div><p class="muted">Run diagnostics use the projected rate from the current imported Ring state forward.</p></section>
         <details id="developer-overrides" class="method-details developer-overrides" data-developer-only hidden><summary><strong>Developer Overrides</strong><span class="summary-hint">Controlled testing inputs</span></summary><div class="method-details-content">
         <div class="section-heading">
           <div><p class="section-number">Developer only</p><h2>Manual controls</h2></div>
@@ -691,6 +698,8 @@
   <script src="js/bell-dashboard-view-model.js?v=2026.08.09-rc1"></script>
   <script src="js/bell-target-view-model.js?v=2026.08.09-rc1"></script>
   <script src="js/bell-run-view-model.js?v=2026.08.09-rc1"></script>
+  <script src="js/bell-run-rate-scenario.js?v=2026.08.09-rc1"></script>
+  <script src="js/bell-run-rate-scenario-tests.js?v=2026.08.09-rc1"></script>
   <script src="js/bell-renewal-decision.js?v=2026.08.09-rc1"></script>
   <script src="js/bell-rate-section.js?v=2026.08.09-rc1"></script>
   <script src="js/bell-account-validation.js?v=2026.08.09-rc1"></script>

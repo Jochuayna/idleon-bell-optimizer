@@ -37,6 +37,8 @@ Select any unlocked Bell reward and compare the current run with a complete fres
 
 The Run Optimizer reports whether to keep the current run, whether Renewing is favored, or whether the outcomes are too close to separate clearly. It considers expected finish and account-relative elite upside, and shows the current level, expected finish, likely range, remaining Bell opportunities, and concise rationale. No player-entered target is required.
 
+An optional **Future Ring Rate** scenario lets players test a projected rate from the currently imported Ring state forward. The same projected rate is applied to continuing and to a fresh replacement, without changing the imported account. This scenario lasts only for the current page session, clears on a new save import, and is never stored in Progress History.
+
 Advanced Details exposes Bell mechanics, Run and Rate model diagnostics, and source/provenance information for players who want to inspect the calculations.
 
 ### Compare
@@ -57,7 +59,7 @@ Advanced Details exposes Bell mechanics, Run and Rate model diagnostics, and sou
 
 ### Local privacy
 
-Idleon saves are processed entirely in the browser. They are not uploaded to GitHub or another server, and raw saves are not persisted. Personal History stores sanitized Bell-only snapshots locally in IndexedDB. Compare benchmarks are session-only. Developer Tools are available only on localhost or `file://` when `?dev=1` is explicitly supplied; they remain unavailable on public hosts.
+Idleon saves are processed entirely in the browser. They are not uploaded to GitHub or another server, and raw saves are not persisted. Personal History stores sanitized Bell-only snapshots locally in IndexedDB. Compare benchmarks and Future Ring Rate scenarios are session-only. Developer Tools are available only on localhost or `file://` when `?dev=1` is explicitly supplied; they remain unavailable on public hosts.
 
 ## How to use
 
