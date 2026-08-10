@@ -246,6 +246,8 @@ Real-fixture regression: World 1 and World 2 each reproduce every ordered screen
 
 - Verify Bell-only mode reproduces the Phase 4 maximum and remains at least as strong as the practical plan.
 - Verify practical mode rejects negligible isolated purchases but retains a multi-level sequence that crosses the Upgrade 45 exponent and roll breakpoint.
+- Verify a Clean Method 1 or Ping Method 3 purchase that remains inside the same `floor(totalMethodLevels / 25)` band produces zero Bell Ring gain.
+- Verify a Clean Method 1 or Ping Method 3 purchase that crosses a 25-level boundary changes Bell Ring only through the resulting Upgrade 45 multiplier applied to Ring Methods 0, 2, 4, and 5.
 - Verify maximum percentage, minimum reserve, absolute maximum spend, maximum levels, and disabled pools; overlapping limits use the strictest value.
 - Verify target-ending-ring mode stops at the first target-reaching sequence unless excess progress is explicitly requested.
 - Verify positive rate steps with no projected roll change carry the player-facing no-roll-gain warning.

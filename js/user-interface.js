@@ -13,13 +13,43 @@ BellOptimizer.userInterface = (function () {
   var importSource = "";
   var importedProbabilityOwnership = null;
   var importedEvaluatorState = null;
+  var activeImportedResult = null;
   var importedRingingProgress = null;
   var importedRenewalState = null;
   var calculatedRingingRate = null;
   var importedBellRateState = null;
+  var importedDashboardData = null;
   var normalBellRateUpgradeData = null;
+  var dashboardRingRateGoal = null;
   var selectedBellStat = BellOptimizer.bellRateSection.DEFAULT_BELL_STAT;
   var selectedGoal = { name: "Fountain", rewardIndex: 6, rewardName: "Coins From Fountain" };
+  var latestRunHistoryContext = null;
+  var activeImportFailureStage = null;
+  var canonicalNoAccountState = null;
+  var renewalDecisionController = BellOptimizer.bellRenewalDecision.createController({ onState: renderRenewalDecisionState });
+
+  function renderRenewalDecisionState(state) {
+    var host=document.querySelector("#advanced-renewal-result"),title=document.querySelector("#advanced-renewal-title"),confidence=document.querySelector("#advanced-renewal-confidence"),reason=document.querySelector("#advanced-renewal-reason"),details=document.querySelector("#advanced-renewal-details"),warning=document.querySelector("#advanced-renewal-warning"),format=BellOptimizer.idleonNumberFormat.format;
+    if(!title)return;
+    host.hidden=false;
+    title.textContent=state.headline;confidence.textContent=state.confidenceLabel||"";reason.textContent=state.reason||"";details.hidden=!state.detail;var summary=details.querySelector("summary");if(summary)summary.textContent=state.headline==="DECISION ZONE"?"Why is this uncertain?":"Why this recommendation?";
+    if(!state.detail)return;
+    function interval(estimate,lower,upper){if(Number.isFinite(lower)&&Number.isFinite(upper)&&Math.abs(upper-lower)>1e-9)return format(lower)+"–"+format(upper);if(Number.isFinite(estimate))return format(estimate);if(Number.isFinite(lower))return format(lower);return "Unavailable";}
+    document.querySelector("#advanced-renewal-continue").textContent=interval(state.detail.continueEstimate,state.detail.continueLower,state.detail.continueUpper);
+    document.querySelector("#advanced-renewal-renew").textContent=interval(state.detail.renewEstimate,state.detail.renewLower,state.detail.renewUpper);
+    document.querySelector("#advanced-renewal-backend").textContent=state.detail.backend==="EXACT"?"Exact analytical":state.detail.backend==="HYBRID_SHALLOW_DIRECTIONAL"?"Shallow directional":"Hybrid analytical";
+    warning.hidden=!state.detail.warning;warning.textContent=state.detail.warning||"";
+  }
+
+  function requestAdvancedRenewalDecision(){var snapshot=automaticPrototypeSnapshot();if(snapshot&&Number.isInteger(selectedGoal.rewardIndex))renewalDecisionController.evaluate(snapshot,selectedGoal.rewardIndex);else renderRenewalDecisionState({headline:"KEEP/RENEW UNAVAILABLE",confidenceLabel:"Unavailable",reason:"Import a complete save before running advanced analysis.",detail:null});}
+
+  function renderReplacementDecision(model){
+    var decision=model&&model.replacement,title=document.querySelector("#run-decision-title"),details=document.querySelector("#run-decision-details");
+    if(!decision||!decision.ok){var unavailableReason=decision&&decision.reason||"The replacement comparison is unavailable.";title.textContent=decision&&decision.headline||"KEEP/RENEW UNAVAILABLE";document.querySelector("#run-decision-confidence").textContent="Unavailable";document.querySelector("#run-decision-reason").textContent=unavailableReason;document.querySelector("#run-decision-reason-detail").textContent=unavailableReason;details.hidden=true;return;}
+    document.querySelector("#run-forecast-hero").dataset.decision=decision.decision.toLowerCase().replace(/_/g,"-");
+    details.open=false;
+    title.textContent=decision.headline;document.querySelector("#run-decision-confidence").textContent=decision.confidenceLabel;document.querySelector("#run-decision-reason").textContent=decision.reason;document.querySelector("#run-decision-reason-detail").textContent=decision.reason;details.hidden=false;document.querySelector("#run-decision-continue").textContent=decision.currentExpected;document.querySelector("#run-decision-renew").textContent=decision.freshExpected;document.querySelector("#run-primary-fresh-range").textContent=decision.freshRange;var rationaleMetric=document.querySelector("#run-primary-modeled-edge");rationaleMetric.previousElementSibling.textContent=decision.rationaleLabel;rationaleMetric.textContent=decision.rationaleMetric;document.querySelector("#run-decision-warning").textContent=decision.assumption;
+  }
 
   function invalidateSelectedRewardEvaluation(message) {
     document.querySelector("#decision-summary").hidden = true;
@@ -40,10 +70,13 @@ BellOptimizer.userInterface = (function () {
     var maxConsumed=plan.orderedPurchases.reduce(function(max,step){return Math.max(max,step.resourcePoolConsumedPercent||0);},0);if(maxConsumed>0)text+=" Resource pool consumed: "+maxConsumed.toFixed(2)+"%.";if(maxConsumed>=75)text+=" This spends most of this resource pool.";return text;
   }
   function renderCandidateRows() {
-    if(!normalBellRateUpgradeData)return;var body=document.querySelector("#normal-candidate-body"),format=BellOptimizer.idleonNumberFormat.format,affordableFirst=document.querySelector("#normal-candidate-affordable-first").checked,items=BellOptimizer.bellRateSection.candidatesForStat(normalBellRateUpgradeData.candidates,selectedBellStat,affordableFirst),activeCount=BellOptimizer.bellRateSection.activeCandidateCount(normalBellRateUpgradeData.candidates,selectedBellStat),showTable=activeCount>=2,note=document.querySelector("#single-candidate-note");document.querySelector("#normal-candidate-section").hidden=!showTable;note.hidden=activeCount!==1;note.textContent=activeCount===1?"Only one verified "+selectedBellStat+" rate upgrade is currently available.":"";body.replaceChildren();if(!showTable)return;items.forEach(function(c){var row=document.createElement("tr"),isCapped=!!c.capped,status=isCapped?"Capped":c.affordableNow?"Affordable":c.status==="passive or RNG-dependent"?"RNG-dependent":c.status==="progression-gated"?"Progression-gated":"Not affordable",cost=isCapped?"—":c.cost==null?"Not deterministic":format(c.cost)+(c.costResource?" "+c.costResource.name:"");[c.name,c.effect,isCapped?"Capped":c.currentLevel+" → "+c.nextLevel,cost,isCapped?"—":c.ownedResource==null?"—":format(c.ownedResource),status,isCapped?"—":"+"+BellOptimizer.bellRateSection.formatRateGain(c.absoluteAffectedGain,format),isCapped?"—":format(c.projectedAffectedValue)+"/hr"].forEach(function(value){var cell=document.createElement("td");cell.textContent=value;row.appendChild(cell);});body.appendChild(row);});
+    if(!normalBellRateUpgradeData)return;var format=BellOptimizer.idleonNumberFormat.format,items=BellOptimizer.bellRateSection.candidatesForStat(normalBellRateUpgradeData.candidates,selectedBellStat,true),available=document.querySelector("#normal-available-upgrades"),next=document.querySelector("#normal-next-upgrades");available.replaceChildren();next.replaceChildren();function card(c){var row=document.createElement("article"),title=document.createElement("div"),metrics=document.createElement("div"),name=document.createElement("strong"),level=document.createElement("span");row.className="upgrade-candidate-card"+(c.affordableNow?" affordable":"");name.textContent=c.name;level.textContent=c.capped?"Capped":"Level "+c.currentLevel+" → "+c.nextLevel;title.append(name,level);[["Cost",c.cost==null?"Not a direct purchase":format(c.cost)+(c.costResource?" "+c.costResource.name:"")],["Rate gain",c.capped?"—":"+"+BellOptimizer.bellRateSection.formatRateGain(c.absoluteAffectedGain,format)],["New "+selectedBellStat.replace("Bell ",""),c.capped?"—":format(c.projectedAffectedValue)+"/hr"]].forEach(function(pair){var item=document.createElement("div"),label=document.createElement("small"),value=document.createElement("b");label.textContent=pair[0];value.textContent=pair[1];item.append(label,value);metrics.appendChild(item);});row.append(title,metrics);return row;}items.filter(function(c){return !c.capped&&c.affordableNow&&c.deterministicPurchase;}).forEach(function(c){available.appendChild(card(c));});items.filter(function(c){return !c.capped&&!c.affordableNow&&c.deterministicPurchase&&c.cost!=null;}).forEach(function(c){next.appendChild(card(c));});if(!available.children.length)available.appendChild(document.createTextNode("No verified "+selectedBellStat+" upgrades are affordable right now."));if(!next.children.length)next.appendChild(document.createTextNode("No verified direct upgrades are waiting on resources."));
   }
   function renderPrimaryRateRecommendation() {
-    if(!normalBellRateUpgradeData)return;var format=BellOptimizer.idleonNumberFormat.format,recommendation=BellOptimizer.bellRateSection.primaryRecommendation(normalBellRateUpgradeData.candidates,selectedBellStat);document.querySelector("#normal-multi-upgrade-plans").hidden=selectedBellStat!=="Bell Ring";document.querySelector("#primary-rate-recommendation-title").textContent=recommendation?"Best "+selectedBellStat+" upgrade":"";if(!recommendation){document.querySelector("#primary-rate-recommendation-main").textContent=BellOptimizer.bellRateSection.noActiveCandidateMessage(selectedBellStat);document.querySelector("#primary-rate-recommendation-rate").textContent="";document.querySelector("#primary-rate-recommendation-cost").textContent="";return;}var c=recommendation.candidate,status=recommendation.affordable?"Affordable":"Upgrade to Work Toward",missing=recommendation.affordable?"":" · Missing "+format(Math.max(0,c.cost-c.ownedResource));document.querySelector("#primary-rate-recommendation-main").textContent=c.name+" · "+status+" · "+c.currentLevel+" → "+c.nextLevel;document.querySelector("#primary-rate-recommendation-rate").textContent="+"+BellOptimizer.bellRateSection.formatRateGain(c.absoluteAffectedGain,format)+" · "+format(c.currentAffectedValue)+"/hr → "+format(c.projectedAffectedValue)+"/hr";document.querySelector("#primary-rate-recommendation-cost").textContent="Cost: "+format(c.cost)+" "+c.costResource.name+missing;
+    if(!normalBellRateUpgradeData)return;var count=BellOptimizer.bellRateSection.activeCandidateCount(normalBellRateUpgradeData.candidates,selectedBellStat);document.querySelector("#normal-multi-upgrade-plans").hidden=selectedBellStat!=="Bell Ring";document.querySelector("#normal-upgrade-paths-summary").textContent=count+" verified "+selectedBellStat+" source"+(count===1?"":"s")+" shown by availability.";
+  }
+  function renderUpgradeOpportunities(){
+    if(!normalBellRateUpgradeData)return;var candidates=normalBellRateUpgradeData.candidates;function affects(c){return (c.effects||[c.effect||"Bell Ring"]).indexOf(selectedBellStat)!==-1;}function list(selector,items,formatter){var host=document.querySelector(selector);host.replaceChildren();items.forEach(function(item){var card=document.createElement("article"),name=document.createElement("strong"),detail=document.createElement("span");card.className="upgrade-opportunity-card";name.textContent=item.name;detail.textContent=formatter(item);card.append(name,detail);host.appendChild(card);});if(!items.length)host.appendChild(document.createTextNode("None in this imported account."));}list("#normal-progression-opportunities",candidates.filter(function(c){return c.eligibilityCategory==="Progression targets"&&affects(c);}),function(c){var gain=c.affectedPercentageGain==null?c.percentageRateGain:c.affectedPercentageGain;return "About "+Math.round(c.cost).toLocaleString()+" kills needed"+(Number.isFinite(gain)?" · projected "+selectedBellStat+" gain +"+gain.toFixed(4)+"%.":".");});list("#normal-rng-opportunities",candidates.filter(function(c){return c.eligibilityCategory==="RNG-dependent"&&affects(c);}),function(c){return (c.id==="jar-11"?"Big Beef Rock Jar next level":c.id==="jar-36"?"Twisted Rupie Jar next level":"Future account progression")+(c.percentageRateGain==null?"":" · hypothetical +"+c.percentageRateGain.toFixed(4)+"%");});list("#normal-capped-sources",candidates.filter(function(c){return (c.eligibilityCategory==="Capped"||c.status==="progression-gated")&&affects(c);}),function(c){return c.capped?"Current verified cap reached.":"Not currently unlocked.";});
   }
   function renderNormalBellRate(result) {
     var section=document.querySelector("#bell-rate-section"),format=BellOptimizer.idleonNumberFormat.format,view=BellOptimizer.bellRateSection.buildBreakdown(result.data);section.hidden=false;document.querySelector("#bell-rate-breakdown-tab").click();
@@ -56,9 +89,85 @@ BellOptimizer.userInterface = (function () {
     addRateDetails("#normal-jar11-details",[["Big Beef Rock Jar level",String(view.jars.jar11Level)],["Raw bonus","+"+String(view.jars.jar11RawPercent)+"%"],["Multiplier","×"+String(view.jars.jar11Multiplier)]]);addRateDetails("#normal-jar36-details",[["Twisted Rupie Jar level",String(view.jars.jar36Level)],["Raw bonus","+"+String(view.jars.jar36RawPercent)+"%"],["Multiplier","×"+String(view.jars.jar36Multiplier)]]);
     try { var generated=result.data.bellRateUpgradeCandidates;if(!generated||!generated.ok)throw new Error(generated&&generated.error||"Unknown candidate error");var plans={progressionAndRngOpportunities:generated.candidates};normalBellRateUpgradeData={ok:true,candidates:generated.candidates,baselineRate:generated.baselineRate,plans:null,state:result.data.bellRateUpgradeState,precomputedCandidates:generated,invalidCandidateWarnings:generated.candidates.filter(function(candidate){return candidate.validationValid===false;}).map(function(candidate){return {id:candidate.id,name:candidate.name,errors:candidate.validationErrors.slice()};})};document.querySelector("#normal-upgrade-paths-status").textContent="";document.querySelector("#normal-practical-plan").textContent="Open this section to calculate multi-upgrade plans.";document.querySelector("#normal-maximum-plan").textContent="Open this section to calculate multi-upgrade plans.";document.querySelector("#normal-search-warning").textContent="";renderPrimaryRateRecommendation();renderCandidateRows();
       var candidateWarnings=normalBellRateUpgradeData.invalidCandidateWarnings;if(candidateWarnings.length)document.querySelector("#normal-upgrade-paths-status").textContent=candidateWarnings.length+" invalid upgrade candidate"+(candidateWarnings.length===1?" was":"s were")+" excluded safely. Rate Breakdown and save import remain available.";
-      function opportunityList(selector,items,formatter){var host=document.querySelector(selector);host.replaceChildren();var list=document.createElement("ul");items.forEach(function(item){var li=document.createElement("li");li.textContent=formatter(item);list.appendChild(li);});host.appendChild(list);}
-      opportunityList("#normal-progression-opportunities",plans.progressionAndRngOpportunities.filter(function(c){return c.eligibilityCategory==="Progression targets";}),function(c){return c.name+": about "+Math.round(c.cost).toLocaleString()+" kills needed; projected Bell-rate gain +"+c.percentageRateGain.toFixed(4)+"%.";});opportunityList("#normal-rng-opportunities",plans.progressionAndRngOpportunities.filter(function(c){return c.eligibilityCategory==="RNG-dependent";}),function(c){var name=c.id==="jar-11"?"Big Beef Rock Jar next level":c.id==="jar-36"?"Twisted Rupie Jar next level":c.name;return name+(c.percentageRateGain==null?"":" — hypothetical +"+c.percentageRateGain.toFixed(4)+"%");});opportunityList("#normal-capped-sources",plans.progressionAndRngOpportunities.filter(function(c){return c.eligibilityCategory==="Capped";}),function(c){return c.name;});
+      renderUpgradeOpportunities();
     } catch(error){normalBellRateUpgradeData=null;console.error("Bell Rate Upgrade Paths failed to render:",error);document.querySelector("#normal-upgrade-paths-status").textContent="Upgrade Paths could not be loaded.";}
+  }
+
+  function dashboardStateWithCharacter() {
+    if(!importedBellRateState)return null;
+    var state=JSON.parse(JSON.stringify(importedBellRateState)),selected=document.querySelector("#dashboard-active-character").value;
+    if(selected!==""){
+      var character=state.coinCharacters.find(function(item){return item.index===Number(selected);});
+      if(character){state.activeCharacterIndex=character.index;state.activeCharacterName=character.name;state.methodOwnedResources[0]=character.coins;}
+    }
+    return state;
+  }
+
+  function dashboardMetric(label,value){var item=document.createElement("div"),name=document.createElement("span"),number=document.createElement("strong");name.textContent=label;number.textContent=value;item.appendChild(name);item.appendChild(number);return item;}
+
+  function renderDashboardPlan(host,changes,options){
+    options=options||{};
+    var pairs;
+    host.replaceChildren();
+    changes.forEach(function(change){var row=document.createElement("article");row.className="dashboard-plan-item"+(change.isMethodScalingBridge?" method-scaling-bridge":""),pairs=[];if(change.isMethodScalingBridge){pairs.push(["Global Method scaling","via "+change.bridgeVia+" · Level "+change.currentLevel+" → "+change.targetLevel]);pairs.push(["Why it helps",change.methodBreakpointsCrossed+" Method scaling breakpoint"+(change.methodBreakpointsCrossed===1?"":"s")]);pairs.push(["Global Method multiplier",change.methodMultiplierBeforeDisplay+" → "+change.methodMultiplierAfterDisplay]);pairs.push(["Ring Rate",(change.rateBeforeDisplay||"Current")+" → "+change.rateAfterDisplay]);}else{pairs.push([change.name,"Level "+change.currentLevel+" → "+change.targetLevel]);pairs.push(["Cost",change.costDisplay+" "+change.resource]);if(!options.hideRemaining)pairs.push(["Remaining",change.remainingDisplay+" "+change.resource]);pairs.push(["Ring Rate after",change.rateAfterDisplay]);}pairs.forEach(function(pair){var item=document.createElement("div"),label=document.createElement("small"),value=document.createElement("strong");label.textContent=pair[0];value.textContent=pair[1];item.appendChild(label);item.appendChild(value);row.appendChild(item);});if(change.isMethodScalingBridge){var cost=document.createElement("p");cost.className="bridge-cost";cost.textContent="Cost: "+change.costDisplay+" "+change.resource;row.appendChild(cost);}host.appendChild(row);});
+  }
+
+  function renderDashboardNextTargets(model){
+    var section=document.querySelector("#dashboard-next-targets"),host=document.querySelector("#dashboard-next-target-list"),moreHost=document.querySelector("#dashboard-more-target-list"),more=document.querySelector("#dashboard-more-targets");host.replaceChildren();moreHost.replaceChildren();function targetRow(target){var row=document.createElement("article");row.className="dashboard-next-target-item";[[target.name,"Level "+target.currentLevel+" → "+target.nextLevel],["Need",target.shortfallDisplay+" more "+target.resource],["Projected gain",target.relativeGainDisplay],["Projected Ring Rate",target.projectedRateDisplay]].forEach(function(pair){var item=document.createElement("div"),label=document.createElement("small"),value=document.createElement("strong");label.textContent=pair[0];value.textContent=pair[1];item.appendChild(label);item.appendChild(value);row.appendChild(item);});return row;}if(model.nextTargets[0])host.appendChild(targetRow(model.nextTargets[0]));model.nextTargets.slice(1).forEach(function(target){moreHost.appendChild(targetRow(target));});more.hidden=model.nextTargets.length<=1;more.open=false;document.querySelector("#dashboard-more-target-count").textContent=String(Math.max(0,model.nextTargets.length-1));
+    var threshold=document.querySelector("#dashboard-method-threshold");threshold.hidden=!model.methodThreshold;if(model.methodThreshold){threshold.textContent=model.methodThreshold.levelsNeeded+" more total Method level"+(model.methodThreshold.levelsNeeded===1?"":"s")+" reaches your next ×1.1 Method scaling step.";}
+    var locked=document.querySelector("#dashboard-locked-sources");locked.hidden=model.lockedCount===0;document.querySelector("#dashboard-locked-count").textContent=String(model.lockedCount);
+    section.hidden=model.nextTargets.length===0&&!model.methodThreshold&&model.lockedCount===0;
+  }
+
+  function renderDashboard(result){
+    importedDashboardData=result.data;
+    importedBellRateState=result.data.bellRateUpgradeState;
+    var characterSelect=document.querySelector("#dashboard-active-character"),previous=characterSelect.value;characterSelect.replaceChildren();var prompt=document.createElement("option");prompt.value="";prompt.textContent="Choose a character";characterSelect.appendChild(prompt);result.data.bellRateCoinCharacters.forEach(function(character){var option=document.createElement("option");option.value=String(character.index);option.textContent=(character.index+1)+": "+character.name+" ("+BellOptimizer.idleonNumberFormat.format(character.coins)+" Coins)";characterSelect.appendChild(option);});if(Array.from(characterSelect.options).some(function(option){return option.value===previous;}))characterSelect.value=previous;
+    var state=dashboardStateWithCharacter(),optimizer=BellOptimizer.bellRateOptimizer.optimizeCurrentlyAffordable(state),next=BellOptimizer.bellRateTargetSolver.buildNextTargets(state),model=BellOptimizer.bellDashboardViewModel.build({optimizerResult:optimizer,nextTargets:next,baseState:state,formatter:BellOptimizer.idleonNumberFormat.format});
+    document.querySelector("#dashboard-no-save").hidden=true;document.querySelector("#dashboard-content").hidden=false;dashboardRingRateGoal=null;document.querySelector("#collectible-jar11-current").textContent="Current: "+state.jar11Level.toLocaleString();document.querySelector("#collectible-jar36-current").textContent="Current: "+state.jar36Level.toLocaleString();document.querySelector("#collectible-jar11-input").value="";document.querySelector("#collectible-jar36-input").value="";document.querySelector("#collectible-what-if-result").hidden=true;document.querySelector("#collectible-goal-search").hidden=true;document.querySelector("#collectible-what-if-status").textContent="Enter one or both hypothetical Jar levels.";
+    if(!model.ok){document.querySelector("#dashboard-optimizer-message").textContent=model.message;document.querySelector("#dashboard-plan-details").hidden=true;return;}
+    document.querySelector("#dashboard-current-rate").textContent=model.current.display;document.querySelector("#run-workspace-ring-rate").textContent=model.current.display;document.querySelector("#dashboard-rate-before").textContent=model.current.display;document.querySelector("#dashboard-rate-after").textContent=model.optimized.display;document.querySelector("#dashboard-relative-gain").textContent=model.gain.relativeDisplay;document.querySelector("#dashboard-absolute-gain").textContent=model.gain.absoluteDisplay;
+    document.querySelector("#dashboard-optimizer-card").dataset.state=model.state;document.querySelector("#dashboard-optimizer-title").textContent=model.state==="nothing-affordable"?"No affordable upgrades right now":model.state==="one-upgrade"?"Best upgrade available now":"Upgrades you can afford now";document.querySelector("#dashboard-optimizer-message").textContent=model.state==="nothing-affordable"?"Your current Ring Rate is shown above. Start with the next upgrade target below.":model.changes.length+" verified upgrade "+(model.changes.length===1?"change is":"changes are")+" available with your current resources.";
+    document.querySelector("#dashboard-coin-control").hidden=!model.coinSelectionRequired;document.querySelector("#dashboard-coin-control").classList.toggle("is-plan-relevant",model.changes.some(function(change){return change.id==="bell-method-0";}));document.querySelector("#dashboard-plan-details").hidden=model.changes.length===0;document.querySelector("#dashboard-plan-count").textContent=model.changes.length+" upgrade "+(model.changes.length===1?"change":"changes");renderDashboardPlan(document.querySelector("#dashboard-plan-list"),model.changes);renderDashboardNextTargets(model);document.querySelector("#dashboard-goal-result").hidden=true;document.querySelector("#dashboard-goal-status").textContent="";
+  }
+
+  function renderDashboardTarget(model){
+    var result=document.querySelector("#dashboard-goal-result"),metrics=document.querySelector("#dashboard-goal-metrics"),plan=document.querySelector("#dashboard-goal-plan"),planSection=document.querySelector("#dashboard-goal-plan-section");result.hidden=false;result.dataset.state=model.state;document.querySelector("#dashboard-goal-result-title").textContent=model.title;metrics.replaceChildren();plan.replaceChildren();planSection.hidden=!model.plan||model.plan.length===0;document.querySelector("#dashboard-collectible-future").hidden=model.state!=="unreachable";document.querySelector("#collectible-goal-search").hidden=model.state!=="unreachable";
+    if(!model.ok){document.querySelector("#dashboard-goal-status").className="import-status error";document.querySelector("#dashboard-goal-status").textContent=model.message;result.hidden=true;return;}
+    document.querySelector("#dashboard-goal-status").className="import-status "+(model.state==="unreachable"?"warning":"success");document.querySelector("#dashboard-goal-status").textContent=model.state==="reachable"?"A smaller target-reaching plan is shown below.":model.state==="already-met"?"Your imported account already meets this goal.":"Your best currently-affordable result and remaining shortfall are shown below.";
+    metrics.appendChild(dashboardMetric("Current",model.currentDisplay));if(model.state==="reachable")metrics.appendChild(dashboardMetric("Plan reaches",model.planReachesDisplay));if(model.state==="unreachable"){metrics.appendChild(dashboardMetric("Best now",model.bestDisplay));metrics.appendChild(dashboardMetric("Shortfall",model.shortfallDisplay));}renderDashboardPlan(plan,model.plan,{hideRemaining:true});
+  }
+
+  function collectibleMode(){return document.querySelector('[name="collectible-target-mode"]:checked').value;}
+  function syncCollectibleInputs(){
+    var delta=collectibleMode()==="delta",jar11=document.querySelector("#collectible-jar11-input"),jar36=document.querySelector("#collectible-jar36-input");
+    jar11.placeholder=delta?"Increase by":"Target level";jar36.placeholder=delta?"Increase by":"Target level";
+  }
+  function parseCollectibleLevel(input,label){
+    var text=input.value.trim();if(!text)return {ok:true,empty:true};var value=Number(text);
+    if(!Number.isSafeInteger(value)||value<0)return {ok:false,message:label+" must be a nonnegative whole number."};
+    return {ok:true,value:value};
+  }
+  function targetLevelCard(item){
+    var card=document.createElement("article"),title=document.createElement("strong"),levels=document.createElement("span");
+    title.textContent=item.source.replace(/^Jar collectible \d+ \(|\)$/g,"");levels.textContent="Level "+item.currentValue.toLocaleString()+" → "+item.targetValue.toLocaleString()+" · "+(item.delta>=0?"+":"")+item.delta.toLocaleString();card.append(title,levels);return card;
+  }
+  function renderCollectibleScenario(result){
+    var host=document.querySelector("#collectible-what-if-result"),levels=document.querySelector("#collectible-target-levels"),format=BellOptimizer.idleonNumberFormat.format;levels.replaceChildren();
+    if(!result.ok){host.hidden=true;return;}
+    result.overrides.forEach(function(item){levels.appendChild(targetLevelCard(item));});
+    document.querySelector("#collectible-projected-rate").textContent=format(result.projectedRate)+"/hr";
+    document.querySelector("#collectible-current-to-projected").textContent=format(result.currentRate)+"/hr → "+format(result.projectedRate)+"/hr";
+    document.querySelector("#collectible-absolute-gain").textContent=(result.absoluteGain>=0?"+":"")+format(result.absoluteGain)+"/hr";
+    document.querySelector("#collectible-relative-gain").textContent=(result.relativeGain>=0?"+":"")+(result.relativeGain*100).toFixed(2).replace(/0+$/,"" ).replace(/\.$/,"")+"%";
+    host.hidden=false;
+  }
+  function renderCollectibleCombinations(result){
+    var host=document.querySelector("#collectible-combinations"),status=document.querySelector("#collectible-combination-status"),format=BellOptimizer.idleonNumberFormat.format;host.replaceChildren();
+    if(!result.ok||!result.jars||!result.jars.enabled){status.className="import-status error";status.textContent=result.error?result.error.message:"Collectible target search is unavailable.";return;}
+    if(result.jars.status!=="HYPOTHETICAL_TARGET_REACHABLE"){status.className="import-status warning";status.textContent=result.jars.reason||"The goal is not reached within those hypothetical maximum levels.";return;}
+    status.className="import-status success";status.textContent="Possible target combinations";
+    result.jars.options.slice(0,12).forEach(function(option){var row=document.createElement("article"),pairs=[["Big Beef Rock","Level "+option.jar11Target+" · +"+option.jar11Delta],["Twisted Rupie","Level "+option.jar36Target+" · +"+option.jar36Delta],["Projected Ring Rate",format(option.projectedRate)+"/hr"],["Goal overshoot","+"+format(option.overshoot)+"/hr"]];row.className="collectible-combination-row";pairs.forEach(function(pair){var cell=document.createElement("div"),label=document.createElement("small"),value=document.createElement("strong");label.textContent=pair[0];value.textContent=pair[1];cell.append(label,value);row.appendChild(cell);});host.appendChild(row);});
   }
 
   form.addEventListener("submit", function (event) { event.preventDefault(); });
@@ -300,6 +409,8 @@ BellOptimizer.userInterface = (function () {
     });
     document.querySelector("#normal-major-range").textContent = range.ok ? range.normalMajorRange.minimum + "-" + range.normalMajorRange.maximum : "Invalid manual inputs";
     document.querySelector("#doubled-major-range").textContent = range.ok ? range.doubledMajorRange.minimum + "-" + range.doubledMajorRange.maximum : "Invalid manual inputs";
+    document.querySelector("#expert-major-range").textContent = range.ok ? range.normalMajorRange.minimum + "–" + range.normalMajorRange.maximum : "Unavailable";
+    document.querySelector("#expert-doubled-major-range").textContent = range.ok ? range.doubledMajorRange.minimum + "–" + range.doubledMajorRange.maximum : "Unavailable";
     var currentRingRaw = document.querySelector('[name="currentRing"]').value.trim();
     var currentRing = Number(currentRingRaw);
     document.querySelector("#next-ring-is-major").textContent = currentRingRaw !== "" && Number.isFinite(currentRing) && currentRing >= 0 ? (BellOptimizer.bellMechanics.isMajorRing(currentRing + 1) ? "Yes - ring " + (currentRing + 1) : "No - ring " + (currentRing + 1)) : "Unknown";
@@ -343,13 +454,20 @@ BellOptimizer.userInterface = (function () {
     [1, 2, 3].forEach(function (gain) {
       var entry = normalBefore.find(function (candidate) { return candidate.gain === gain; });
       document.querySelector("#probability-gain-" + gain).textContent = entry ? formatProbability(entry) : "0%";
+      document.querySelector("#expert-probability-gain-" + gain).textContent = entry ? formatProbability(entry) : "0%";
     });
     document.querySelector("#expected-normal-before").textContent = formatExpected(expectedBefore.value);
     document.querySelector("#expected-normal-after").textContent = formatExpected(expectedAfter.value);
     document.querySelector("#expected-major-after").textContent = expectedMajor.ok ? formatExpected(expectedMajor.afterDouble.value) : "Invalid inputs";
+    document.querySelector("#expert-expected-normal").textContent = formatExpected(expectedBefore.value);
+    document.querySelector("#expert-expected-normal-double").textContent = formatExpected(expectedAfter.value);
+    document.querySelector("#expert-expected-major").textContent = expectedMajor.ok ? formatExpected(expectedMajor.afterDouble.value) : "Unavailable";
     renderDistribution("#normal-distribution-before", normalBefore);
     renderDistribution("#normal-distribution-after", normalAfter);
     if (major.ok) { renderDistribution("#major-distribution-before", major.beforeDouble); renderDistribution("#major-distribution-after", major.afterDouble); }
+    renderDistribution("#expert-normal-distribution-before", normalBefore);
+    renderDistribution("#expert-normal-distribution-after", normalAfter);
+    if (major.ok) { renderDistribution("#expert-major-distribution-before", major.beforeDouble); renderDistribution("#expert-major-distribution-after", major.afterDouble); }
     document.querySelector("#probability-details").hidden = false;
   }
 
@@ -371,6 +489,8 @@ BellOptimizer.userInterface = (function () {
       probability.textContent = reward.available ? reward.probability.numerator + "/" + reward.probability.denominator + " = " + formatProbability(reward) : "Locked";
       row.appendChild(name); row.appendChild(probability); list.appendChild(row);
     });
+    document.querySelector("#expert-available-reward-summary").textContent = summary.textContent;
+    var expertList=document.querySelector("#expert-reward-selection-list");expertList.replaceChildren();Array.from(list.children).forEach(function(row){expertList.appendChild(row.cloneNode(true));});
   }
 
   function formatPercentValue(value) {
@@ -421,6 +541,9 @@ BellOptimizer.userInterface = (function () {
     document.querySelector("#fresh-run-target-label").textContent = "Fresh-run " + selectedGoal.rewardName + " target level";
     if (rewardChanged) invalidateSelectedRewardEvaluation("Reward changed to " + selectedGoal.rewardName + ". Click Check My Run to calculate it.");
     refreshCurrentRunDistribution();
+    if(importedEvaluatorState)renderRunForecast();
+    renewalDecisionController.invalidate();
+    var advancedResult=document.querySelector("#advanced-renewal-result");if(advancedResult)advancedResult.hidden=true;
   }
 
   function refreshCurrentRunDistribution() {
@@ -441,7 +564,8 @@ BellOptimizer.userInterface = (function () {
     analysis.rewards.forEach(function (reward) {
       var row = document.createElement("div"); row.className = "advanced-distribution-row";
       var fraction = reward.futureSelectionProbability.numerator + "/" + reward.futureSelectionProbability.denominator;
-      [reward.index + " — " + reward.name, String(reward.currentLevel), String(reward.shareOfCurrentLevels), fraction + " (" + String(reward.futureSelectionProbabilityValue) + ")"].forEach(function (value) { var cell = document.createElement("span"); cell.textContent = value; row.appendChild(cell); });
+      var values=[reward.index + " — " + reward.name,String(reward.currentLevel),percent(reward.shareOfCurrentLevels,2),percent(reward.futureSelectionProbabilityValue,2)+" ("+fraction+")"];
+      values.forEach(function (value,index) { var cell = document.createElement("span"); cell.textContent = value;if(index===2)cell.title="Exact share: "+String(reward.shareOfCurrentLevels);if(index===3)cell.title="Exact probability: "+String(reward.futureSelectionProbabilityValue);row.appendChild(cell); });
       advancedBody.appendChild(row);
     });
     section.hidden = false;
@@ -472,6 +596,47 @@ BellOptimizer.userInterface = (function () {
       expectedOrdinaryRingGain: mechanics.getExpectedGainAfterWholeRingDouble(state.upgrade42Owned, state.upgrade60Owned, state.doubleEnabled, state.doubleChance).value,
       expectedMajorRingGain: mechanics.getExpectedMajorRingGain(state.upgrade42Owned, state.upgrade60Owned, state.majorBonus, state.doubleEnabled, state.doubleChance).afterDouble.value
     };
+  }
+
+  function automaticPrototypeSnapshot() {
+    if (!importedEvaluatorState || !importedRingingProgress || !importedRenewalState || !Number.isFinite(calculatedRingingRate)) return null;
+    return {
+      rewardLevels: importedEvaluatorState.rewardLevels.slice(),
+      currentRawRingIndex: importedRingingProgress.rawRingIndex,
+      currentRingingExp: importedRingingProgress.currentRingingExp,
+      ringingExpPerHour: calculatedRingingRate,
+      currentRenewalCurrency: importedRenewalState.currentCurrency,
+      renewalCurrencyPerHour: importedRenewalState.currencyPerHour,
+      renewalCost: importedRenewalState.renewalCost,
+      cavernsOwned: importedEvaluatorState.cavernsOwned,
+      bellUpgrade42Owned: importedEvaluatorState.upgrade42Owned,
+      bellUpgrade60Owned: importedEvaluatorState.upgrade60Owned,
+      bellUpgrade86Owned: importedEvaluatorState.doubleEnabled,
+      majorBellBonus: importedEvaluatorState.majorBonus,
+      mechanicsForReward: function (rewardIndex) { return evaluatorMechanics(rewardIndex); }
+    };
+  }
+
+  function syncRunRewardControls() {
+    if (!importedEvaluatorState) return;
+    var probabilities=BellOptimizer.bellMechanics.getRewardSelectionProbabilities(importedEvaluatorState.cavernsOwned),firstAvailable=null,selectedAvailable=false;
+    document.querySelectorAll(".goal-preset[data-reward-index]").forEach(function(button){var index=Number(button.dataset.rewardIndex),reward=probabilities.rewards[index],available=Boolean(reward&&reward.available),level=button.querySelector(".run-reward-level");if(available&&firstAvailable===null)firstAvailable=button;if(index===selectedGoal.rewardIndex)selectedAvailable=available;button.disabled=!available;button.classList.toggle("locked",!available);button.title=available?"Current level "+importedEvaluatorState.rewardLevels[index].toLocaleString():"Locked until more Caverns are owned";if(level)level.textContent=available?BellOptimizer.idleonNumberFormat.format(importedEvaluatorState.rewardLevels[index]):"Locked";});
+    if(!selectedAvailable&&firstAvailable)selectGoal(firstAvailable);
+  }
+
+  function renderRunForecast() {
+    var empty=document.querySelector("#run-forecast-empty"),resultHost=document.querySelector("#run-forecast-result"),hero=document.querySelector("#run-forecast-hero"),snapshot=automaticPrototypeSnapshot();
+    if(!snapshot||!Number.isInteger(selectedGoal.rewardIndex)){latestRunHistoryContext=null;BellOptimizer.bellHistorySection.setRunContext(null);empty.hidden=false;resultHost.hidden=true;empty.querySelector("strong").textContent="Import a save with a complete Bell Ring rate to forecast this run.";return null;}
+    var state=importedEvaluatorState,options={selectedRewardIndex:selectedGoal.rewardIndex,rewardLevels:snapshot.rewardLevels,currentRawRingIndex:snapshot.currentRawRingIndex,currentRingingExp:snapshot.currentRingingExp,ringingExpPerHour:snapshot.ringingExpPerHour,currentRenewalCurrency:snapshot.currentRenewalCurrency,cavernsOwned:state.cavernsOwned,majorBellBonus:state.majorBonus,bellUpgrade42Owned:state.upgrade42Owned,bellUpgrade60Owned:state.upgrade60Owned,bellUpgrade86Owned:state.doubleEnabled},forecast=BellOptimizer.bellRunForecast.evaluateBellRunForecast(options),replacement=BellOptimizer.bellRunReplacement.evaluate(options),model=BellOptimizer.bellRunViewModel.build({forecast:forecast,replacement:replacement,reward:BellOptimizer.BELL_REWARDS[selectedGoal.rewardIndex],formatter:BellOptimizer.idleonNumberFormat.format});
+    if(!model.ok){latestRunHistoryContext=null;BellOptimizer.bellHistorySection.setRunContext(null);empty.hidden=false;resultHost.hidden=true;empty.querySelector("strong").textContent=model.message;return model;}
+    latestRunHistoryContext=BellOptimizer.bellHistorySnapshot.runContextFromViewModel(model);BellOptimizer.bellHistorySection.setRunContext(latestRunHistoryContext);
+    function text(id,value){document.querySelector("#"+id).textContent=value;}
+    renderReplacementDecision(model);
+    empty.hidden=true;resultHost.hidden=false;hero.dataset.tier=model.tierKey.toLowerCase().replace(/_/g,"-");text("run-forecast-reward",model.rewardName);text("run-forecast-tier",model.tierLabel);text("run-forecast-current",model.currentDisplay);text("run-forecast-finish",model.finishDisplay);text("run-forecast-range",model.rangeDisplay);text("run-forecast-direction",model.direction);text("run-forecast-interpretation",model.interpretation);text("run-forecast-concentration",model.concentrationDisplay);text("run-forecast-expected-share",model.expectedShareDisplay);text("run-forecast-next-major",model.nextMajorDisplay);text("run-forecast-rings-to-major",model.ringsToMajorDisplay);text("run-forecast-taper-ring",model.taperRingDisplay);text("run-forecast-taper-time",model.taperTimeDisplay);text("run-forecast-opportunities",model.opportunityDisplay);text("run-forecast-majors",model.majorDisplay);text("run-forecast-mode",model.playerCalculationMode);text("run-forecast-superiority",model.superiorityDisplay);text("run-forecast-additional",model.additionalDisplay);text("run-forecast-wide-range",model.wideRangeDisplay);text("run-forecast-assumption",model.assumption);
+    if(replacement&&replacement.ok){var format=BellOptimizer.idleonNumberFormat.format,pct=function(value){return (value*100).toFixed(2).replace(/\.00$/,"").replace(/(\.\d)0$/,"$1")+"%";};text("expert-run-selected-reward",replacement.selectedRewardName);text("expert-run-decision",replacement.decision);text("expert-run-current-level",format(replacement.currentRun.startingRewardLevel));text("expert-run-current-taper","Ring "+(replacement.currentRun.taperRawRingIndex+1).toLocaleString());text("expert-run-fresh-taper","Ring "+(replacement.freshReplacement.taperRawRingIndex+1).toLocaleString());text("expert-run-current-expected",format(replacement.currentRun.expectedEndingLevel));text("expert-run-fresh-expected",format(replacement.freshReplacement.expectedEndingLevel));text("expert-run-current-likely",format(replacement.currentRun.likelyRange.p25)+"–"+format(replacement.currentRun.likelyRange.p75));text("expert-run-fresh-likely",format(replacement.freshReplacement.likelyRange.p25)+"–"+format(replacement.freshReplacement.likelyRange.p75));text("expert-run-current-wide",format(replacement.currentRun.broaderRange.p10)+"–"+format(replacement.currentRun.broaderRange.p90));text("expert-run-fresh-wide",format(replacement.freshReplacement.broaderRange.p10)+"–"+format(replacement.freshReplacement.broaderRange.p90));text("expert-run-current-win",pct(replacement.comparison.probabilityCurrentBeatsFresh));text("expert-run-ties",pct(replacement.comparison.probabilityTie));text("expert-run-affordable",replacement.renewal.affordableNow?"Yes":"No");text("expert-run-rolls",replacement.currentRun.remainingBellRolls.toLocaleString());text("expert-run-majors",replacement.currentRun.remainingMajorPayouts.toLocaleString());text("expert-run-mode",replacement.comparison.calculationMode+(replacement.comparison.approximate?" · approximate":""));}
+    if(replacement&&replacement.ok){var replacementFormat=BellOptimizer.idleonNumberFormat.format,advantage=replacement.comparison.expectedAdvantageCurrentMinusFresh;document.querySelector("#expert-run-expected-advantage").textContent=(advantage>=0?"Current +":"Fresh +")+replacementFormat(Math.abs(advantage));document.querySelector("#expert-run-relative-advantage").textContent=pct(replacement.comparison.relativeExpectedAdvantage);document.querySelector("#expert-run-regret-keep").textContent=replacementFormat(replacement.comparison.expectedRegretIfKeep);document.querySelector("#expert-run-regret-renew").textContent=replacementFormat(replacement.comparison.expectedRegretIfRenew);document.querySelector("#expert-run-rationale").textContent=replacement.comparison.classificationRationale;}
+    if(replacement&&replacement.ok&&replacement.comparison.eliteUpside){var elite=replacement.comparison.eliteUpside,eliteFormat=BellOptimizer.idleonNumberFormat.format;document.querySelector("#expert-elite-p80").textContent=eliteFormat(elite.freshP80Level);document.querySelector("#expert-elite-p90").textContent=eliteFormat(elite.freshP90Level);document.querySelector("#expert-elite-p80-probability").textContent=pct(elite.currentP80Probability)+" / "+pct(elite.freshP80Probability);document.querySelector("#expert-elite-p90-probability").textContent=pct(elite.currentP90Probability)+" / "+pct(elite.freshP90Probability);document.querySelector("#expert-elite-p80-excess").textContent=eliteFormat(elite.currentExpectedExcessP80)+" / "+eliteFormat(elite.freshExpectedExcessP80);document.querySelector("#expert-elite-utility").textContent=elite.currentQuarticUtility.toFixed(3)+" / "+elite.freshQuarticUtility.toFixed(3);document.querySelector("#expert-elite-ev-relative").textContent=pct(replacement.comparison.relativeExpectedAdvantage);document.querySelector("#expert-elite-preservation").textContent=replacement.elitePreservation.replace(/_/g," ");document.querySelector("#expert-elite-ev-safety").textContent=replacement.evSafetyStatus.replace(/_/g," ");document.querySelector("#expert-elite-consensus").textContent=replacement.upsideDirection+" · "+replacement.upsideConsensus;}
+    return model;
   }
 
   function evaluateSelectedTarget() {
@@ -541,26 +706,24 @@ BellOptimizer.userInterface = (function () {
     constraintHost.appendChild(constraintTable);
   }
 
-  function importFromText(text, parsedResult) {
-    var result = parsedResult || BellOptimizer.saveParsing.parseBellRewardLevels(text);
-    if (!result.ok) {
-      showImportError(result.error.message + (result.error.path ? " Path: " + result.error.path : ""));
-      return;
-    }
+  function importCheckpoint(name, options) {
+    if(activeImportFailureStage===name)throw new Error("Injected active-import failure after "+name);
+    if (options && typeof options.checkpoint === "function") options.checkpoint(name);
+  }
+
+  function applyImportedResult(result, options) {
+    options = options || {};
     normalBellRateUpgradeData=null;
     var upgradeViewReset=BellOptimizer.bellRateSection.defaultViewState();
     selectedBellStat=upgradeViewReset.selectedStat;
     document.querySelectorAll(".bell-stat-filter-button").forEach(function(button){var selected=button.dataset.bellStat===selectedBellStat;button.classList.toggle("selected",selected);button.setAttribute("aria-pressed",String(selected));});
-    document.querySelector("#normal-candidate-affordable-first").checked=upgradeViewReset.affordableFirst;
     document.querySelector("#normal-multi-upgrade-plans").open=upgradeViewReset.plansExpanded;
     document.querySelector("#current-run-distribution").open=false;
-    document.querySelector("#normal-candidate-section").hidden=false;
-    document.querySelector("#single-candidate-note").hidden=true;
     document.querySelector("#bell-rate-section").hidden=false;
     document.querySelector("#normal-bell-rate").textContent="—";
     document.querySelector("#normal-bell-rate-exact").textContent="";
     document.querySelector("#normal-upgrade-paths-status").textContent="Upgrade Paths will load after import.";
-    ["#normal-practical-plan","#normal-maximum-plan","#normal-progression-opportunities","#normal-rng-opportunities","#normal-capped-sources","#normal-candidate-body"].forEach(function(selector){document.querySelector(selector).replaceChildren();});
+    ["#normal-practical-plan","#normal-maximum-plan","#normal-progression-opportunities","#normal-rng-opportunities","#normal-capped-sources","#normal-available-upgrades","#normal-next-upgrades"].forEach(function(selector){document.querySelector(selector).replaceChildren();});
     document.querySelector("#bell-rate-character-select").value="";
     document.querySelector("#bell-rate-optimizer-summary").replaceChildren();
     document.querySelector("#bell-rate-plan-comparison").replaceChildren();
@@ -575,11 +738,23 @@ BellOptimizer.userInterface = (function () {
     document.querySelector('[name="minimumNormalGain"]').value = result.data.normalRingGainDetails.minimumNormalGain;
     document.querySelector('[name="maximumNormalGain"]').value = result.data.normalRingGainDetails.maximumNormalGain;
     document.querySelector('[name="cavernsOwned"]').value = result.data.cavernsOwned;
+    importCheckpoint("after-fallback-fields", options);
+    importCheckpoint("account-status", options);
     importStatus.className = "import-status success";
     importStatus.textContent = "Your Bell data was imported locally and is ready to check.";
+    importCheckpoint("after-account-status", options);
     pasteArea.value = "";
+    document.querySelector("#save-import-panel").classList.add("is-imported");
+    document.querySelector("#compact-account-bar").hidden = false;
     document.querySelector("#summary-current-ring").textContent = result.data.bellRingNumber;
     document.querySelector("#summary-rewards-unlocked").textContent = BellOptimizer.bellMechanics.getAvailableRewards(result.data.cavernsOwned).rewards.length;
+    document.querySelector("#provenance-ring-value").textContent = "Raw: " + result.data.rawRingIndex.toLocaleString() + " · Human: " + result.data.humanRing.toLocaleString();
+    document.querySelector("#provenance-progress-value").textContent = "Raw EXP: " + String(result.data.currentRingingExp);
+    document.querySelector("#provenance-major-value").textContent = "Study level: " + result.data.bolaiaBellStudyLevel.toLocaleString() + " · Bonus: " + result.data.majorBellBonus.toLocaleString();
+    document.querySelector("#provenance-upgrade42-value").textContent = "Raw: " + result.data.bellUpgrade42RawValue + " · Owned: " + (result.data.bellUpgrade42Owned ? "Yes" : "No");
+    document.querySelector("#provenance-upgrade60-value").textContent = "Raw: " + result.data.bellUpgrade60RawValue + " · Owned: " + (result.data.bellUpgrade60Owned ? "Yes" : "No");
+    document.querySelector("#provenance-upgrade86-value").textContent = "Raw: " + result.data.bellUpgrade86RawValue + " · Owned: " + (result.data.bellUpgrade86Owned ? "Yes" : "No");
+    document.querySelector("#provenance-cavern-value").textContent = "Villager level: " + result.data.villagerLevel0.toLocaleString() + " · Caverns: " + result.data.cavernsOwned.toLocaleString();
     document.querySelector("#import-summary").hidden = false;
     importedRingingProgress = { rawRingIndex: result.data.rawRingIndex, currentRingingExp: result.data.currentRingingExp, nextRingRequiredExp: result.data.nextRingRequiredExp };
     importedRenewalState = { currentCurrency: result.data.currentRenewalCurrency, currencyPerHour: result.data.renewalCurrencyPerHour, renewalCost: result.data.renewalCost };
@@ -705,13 +880,26 @@ BellOptimizer.userInterface = (function () {
     document.querySelector("#cavern-import-details").hidden = false;
     importedProbabilityOwnership = { upgrade42Owned: result.data.bellUpgrade42Owned, upgrade60Owned: result.data.bellUpgrade60Owned };
     importedEvaluatorState = { rewardLevels: result.data.values.slice(), currentRing: result.data.bellRingNumber, cavernsOwned: result.data.cavernsOwned, upgrade42Owned: result.data.bellUpgrade42Owned, upgrade60Owned: result.data.bellUpgrade60Owned, doubleEnabled: result.data.wholeRingDoubleEnabled, doubleChance: 25, majorBonus: result.data.majorBellBonus };
+    importCheckpoint("after-canonical-assignment", options);
+    syncRunRewardControls();
+    importCheckpoint("run-render", options);
+    renderRunForecast();
+    importCheckpoint("after-run-render", options);
+    renewalDecisionController.invalidate();
+    document.querySelector("#advanced-renewal-result").hidden=true;
+    if (BellOptimizer.developerMode && BellOptimizer.developerMode.enabled && BellOptimizer.automaticRunPrototype) BellOptimizer.automaticRunPrototype.invalidateAccount();
     refreshMechanicsPreview();
     refreshProbabilityPreview();
     refreshRewardSelectionPreview();
     refreshCurrentRunDistribution();
+    importCheckpoint("compare-update", options);
     BellOptimizer.bellBenchmarkSection.setActiveAccount(result.data);
-    try { renderNormalBellRate(result); } catch (error) { console.error("Bell Rate section failed to render:",error);document.querySelector("#bell-rate-section").hidden=false;document.querySelector("#normal-rate-status").textContent="Bell Rate breakdown could not be displayed."; }
-    try { BellOptimizer.bellHistorySection.setCurrent(result.data).catch(function(error){console.error("Bell Progress History could not use the current import:",error);}); } catch (error) { console.error("Bell Progress History could not use the current import:",error); }
+    importCheckpoint("after-compare-update", options);
+    try { renderDashboard(result); } catch (error) { console.error("Bell Dashboard failed to render:",error);document.querySelector("#dashboard-no-save").hidden=false;document.querySelector("#dashboard-no-save").querySelector("strong").textContent="Your save imported, but the Ring Rate Dashboard could not be displayed.";document.querySelector("#dashboard-content").hidden=true; }
+    importCheckpoint("rate-render", options);
+    renderNormalBellRate(result);
+    importCheckpoint("after-rate-render", options);
+    if (!options.suppressHistory) try { BellOptimizer.bellHistorySection.setCurrent(result.data,latestRunHistoryContext).catch(function(error){console.error("Bell Progress History could not use the current import:",error);}); } catch (error) { console.error("Bell Progress History could not use the current import:",error); }
     try {
       initializeBellRateOptimizerUI(result);
     } catch (error) {
@@ -719,6 +907,90 @@ BellOptimizer.userInterface = (function () {
       var optimizerStatus=document.querySelector("#bell-rate-optimizer-status");
       if(optimizerStatus)optimizerStatus.textContent="Bell Rate Optimizer is unavailable: "+BellOptimizer.saveImportWorkflow.safeMessage(error);
     }
+    importCheckpoint("after-character-options", options);
+    importCheckpoint("after-last-visible-update", options);
+  }
+
+  function prepareImportedResult(result) {
+    if (!result || !result.ok || !result.data) throw new Error("The imported Bell account is incomplete.");
+    var data=result.data;
+    if (!Array.isArray(data.values) || data.values.length < 7 || !data.values.slice(0,7).every(function(value){return typeof value==="number"&&Number.isFinite(value)&&value>=0;})) throw new Error("The imported Bell reward levels are incomplete.");
+    if (!data.ringingRateBreakdown || !data.bellRateUpgradeState || !data.normalRingGainDetails) throw new Error("The imported Bell mechanics could not be derived.");
+    var stagedEvaluator={rewardLevels:data.values.slice(0,7),currentRing:data.bellRingNumber,cavernsOwned:data.cavernsOwned,upgrade42Owned:data.bellUpgrade42Owned,upgrade60Owned:data.bellUpgrade60Owned,doubleEnabled:data.wholeRingDoubleEnabled,doubleChance:25,majorBonus:data.majorBellBonus};
+    var selectedIndex=selectedGoal&&Number.isInteger(selectedGoal.rewardIndex)?selectedGoal.rewardIndex:0,availability=BellOptimizer.bellMechanics.getRewardSelectionProbabilities(data.cavernsOwned);
+    if(!availability.rewards[selectedIndex]||!availability.rewards[selectedIndex].available){var first=availability.rewards.find(function(reward){return reward.available;});selectedIndex=first?first.index:0;}
+    var rate=data.ringingRateBreakdown.complete?data.ringingRateBreakdown.calculatedRate:null;
+    if(Number.isFinite(rate)){
+      var options={selectedRewardIndex:selectedIndex,rewardLevels:stagedEvaluator.rewardLevels,currentRawRingIndex:data.rawRingIndex,currentRingingExp:data.currentRingingExp,ringingExpPerHour:rate,currentRenewalCurrency:data.currentRenewalCurrency,cavernsOwned:data.cavernsOwned,majorBellBonus:data.majorBellBonus,bellUpgrade42Owned:data.bellUpgrade42Owned,bellUpgrade60Owned:data.bellUpgrade60Owned,bellUpgrade86Owned:data.wholeRingDoubleEnabled};
+      var forecast=BellOptimizer.bellRunForecast.evaluateBellRunForecast(options),replacement=BellOptimizer.bellRunReplacement.evaluate(options),reward=BellOptimizer.BELL_REWARDS[selectedIndex],model=BellOptimizer.bellRunViewModel.build({forecast:forecast,replacement:replacement,reward:reward,formatter:BellOptimizer.idleonNumberFormat.format});
+      if(!model||!model.ok)throw new Error(model&&model.message?model.message:"The Run forecast could not be prepared.");
+    }
+    var breakdown=BellOptimizer.bellRateSection.buildBreakdown(data);
+    if(!breakdown)throw new Error("The Bell Rate view could not be prepared.");
+    return {result:result,evaluatorState:stagedEvaluator};
+  }
+
+  var IMPORT_SEMANTIC_CONTROLS=["#dashboard-goal-input","#dashboard-active-character","#bell-rate-character-select","#simple-target-level","#simple-target-ring","#target-reward","#target-reward-level","#target-ring","#collectible-jar11-input","#collectible-jar36-input","#collectible-jar11-max","#collectible-jar36-max",'[name="reward1"]','[name="reward2"]','[name="reward3"]','[name="reward4"]','[name="reward5"]','[name="reward6"]','[name="reward7"]','[name="currentRing"]','[name="majorBonus"]','[name="minimumNormalGain"]','[name="maximumNormalGain"]','[name="doubleEnabled"]','[name="doubleLevelChance"]','[name="cavernsOwned"]'];
+  function captureImportControl(selector){var node=document.querySelector(selector),saved;if(!node)return null;saved={selector:selector,value:node.value,checked:"checked" in node?node.checked:null};if(node.tagName==="SELECT")saved.options=Array.from(node.options).map(function(option){return {value:option.value,text:option.textContent,disabled:option.disabled};});return saved;}
+  function restoreImportControl(saved){var node=saved&&document.querySelector(saved.selector);if(!node)return;if(node.tagName==="SELECT"&&Array.isArray(saved.options)){node.replaceChildren();saved.options.forEach(function(item){var option=document.createElement("option");option.value=item.value;option.textContent=item.text;option.disabled=item.disabled;node.appendChild(option);});}node.value=saved.value;if(saved.checked!==null&&"checked" in node)node.checked=saved.checked;}
+  function captureSemanticImportState() {
+    var controls={},disclosures={},selectedTab=document.querySelector('#bell-rate-tabs [aria-selected="true"]');
+    IMPORT_SEMANTIC_CONTROLS.forEach(function(selector){var saved=captureImportControl(selector);if(saved)controls[selector]=saved;});
+    document.querySelectorAll("details[id]").forEach(function(node){disclosures[node.id]=node.open;});
+    return {
+      globals:{importedProbabilityOwnership:importedProbabilityOwnership,importedEvaluatorState:importedEvaluatorState,importedRingingProgress:importedRingingProgress,importedRenewalState:importedRenewalState,calculatedRingingRate:calculatedRingingRate,importedBellRateState:importedBellRateState,importedDashboardData:importedDashboardData,normalBellRateUpgradeData:normalBellRateUpgradeData,dashboardRingRateGoal:dashboardRingRateGoal,selectedBellStat:selectedBellStat,selectedGoal:Object.assign({},selectedGoal),latestRunHistoryContext:latestRunHistoryContext},
+      benchmark:BellOptimizer.bellBenchmarkSection.captureState(),workspace:document.body.dataset.workspace||"run",rateTab:selectedTab?selectedTab.id:null,controls:controls,disclosures:disclosures,
+      normalized:BellOptimizer.activeImportTransaction.normalizedSemanticSnapshot({activeAccountId:activeImportedResult&&activeImportedResult.data&&activeImportedResult.data.fingerprint,selectedRewardIndex:selectedGoal.rewardIndex,selectedBellStat:selectedBellStat,dashboardGoal:dashboardRingRateGoal,workspace:document.body.dataset.workspace||"run",rateTab:selectedTab?selectedTab.id:null,benchmarkFingerprint:(BellOptimizer.bellBenchmarkSection._getSession().activeBenchmarkSnapshot||{}).fingerprint,disclosureState:disclosures,controlState:Object.keys(controls).reduce(function(out,key){out[key]={value:controls[key].value,checked:controls[key].checked,options:controls[key].options?controls[key].options.map(function(item){return item.value+"|"+item.text+"|"+item.disabled;}):null};return out;},{})})
+    };
+  }
+
+  function restoreSemanticControls(snapshot) {
+    Object.keys(snapshot.controls||{}).forEach(function(selector){restoreImportControl(snapshot.controls[selector]);});
+    selectedGoal=Object.assign({},snapshot.globals.selectedGoal);var rewardButton=Number.isInteger(selectedGoal.rewardIndex)?document.querySelector('.goal-preset[data-reward-index="'+selectedGoal.rewardIndex+'"]'):null;if(rewardButton)selectGoal(rewardButton);
+    selectedBellStat=snapshot.globals.selectedBellStat;document.querySelectorAll(".bell-stat-filter-button").forEach(function(button){var selected=button.dataset.bellStat===selectedBellStat;button.classList.toggle("selected",selected);button.setAttribute("aria-pressed",String(selected));});
+    normalBellRateUpgradeData=snapshot.globals.normalBellRateUpgradeData||normalBellRateUpgradeData;renderPrimaryRateRecommendation();renderCandidateRows();renderUpgradeOpportunities();
+    if(normalBellRateUpgradeData&&normalBellRateUpgradeData.plans){document.querySelector("#normal-practical-plan").textContent=planSummary(normalBellRateUpgradeData.plans.practicalPlan,normalBellRateUpgradeData.baselineRate);document.querySelector("#normal-maximum-plan").textContent=planSummary(normalBellRateUpgradeData.plans.bellOnlyMaximum,normalBellRateUpgradeData.baselineRate);}
+    dashboardRingRateGoal=snapshot.globals.dashboardRingRateGoal;
+    if(dashboardRingRateGoal!=null&&importedBellRateState){var targetResult=BellOptimizer.bellRateTargetSolver.solve({baseState:dashboardStateWithCharacter(),targetRate:dashboardRingRateGoal}),targetModel=BellOptimizer.bellTargetViewModel.build(targetResult,BellOptimizer.idleonNumberFormat.format,dashboardStateWithCharacter());renderDashboardTarget(targetModel);}
+    Object.keys(snapshot.disclosures||{}).forEach(function(id){var node=document.getElementById(id);if(node&&node.tagName==="DETAILS")node.open=snapshot.disclosures[id];});
+    if(snapshot.rateTab){var tabName=snapshot.rateTab.indexOf("upgrades")!==-1?"upgrades":snapshot.rateTab.indexOf("benchmark")!==-1?"benchmark":snapshot.rateTab.indexOf("history")!==-1?"history":"breakdown";selectBellRateTab(tabName);}
+    selectWorkspace(snapshot.workspace||"run");
+  }
+
+  function restorePreviousImportState(previous,snapshot) {
+    activeImportFailureStage=null;
+    selectedGoal=Object.assign({},snapshot.globals.selectedGoal);selectedBellStat=snapshot.globals.selectedBellStat;
+    applyImportedResult(previous,{rollback:true,suppressHistory:true});
+    importedProbabilityOwnership=snapshot.globals.importedProbabilityOwnership;importedEvaluatorState=snapshot.globals.importedEvaluatorState;importedRingingProgress=snapshot.globals.importedRingingProgress;importedRenewalState=snapshot.globals.importedRenewalState;calculatedRingingRate=snapshot.globals.calculatedRingingRate;importedBellRateState=snapshot.globals.importedBellRateState;importedDashboardData=snapshot.globals.importedDashboardData;latestRunHistoryContext=snapshot.globals.latestRunHistoryContext||null;BellOptimizer.bellHistorySection.setRunContext(latestRunHistoryContext);
+    BellOptimizer.bellBenchmarkSection.restoreState(snapshot.benchmark);restoreSemanticControls(snapshot);renewalDecisionController.invalidate();if(BellOptimizer.automaticRunPrototype)BellOptimizer.automaticRunPrototype.invalidateAccount();
+  }
+
+  function restoreEmptyImportState(snapshot) {
+    activeImportFailureStage=null;
+    snapshot=canonicalNoAccountState||snapshot;
+    var g=snapshot.globals;importedProbabilityOwnership=g.importedProbabilityOwnership;importedEvaluatorState=g.importedEvaluatorState;importedRingingProgress=g.importedRingingProgress;importedRenewalState=g.importedRenewalState;calculatedRingingRate=g.calculatedRingingRate;importedBellRateState=g.importedBellRateState;importedDashboardData=g.importedDashboardData;normalBellRateUpgradeData=g.normalBellRateUpgradeData;dashboardRingRateGoal=g.dashboardRingRateGoal;selectedBellStat=g.selectedBellStat;selectedGoal=Object.assign({},g.selectedGoal);latestRunHistoryContext=g.latestRunHistoryContext||null;BellOptimizer.bellHistorySection.setRunContext(latestRunHistoryContext);
+    document.querySelector("#save-import-panel").classList.remove("is-imported");document.querySelector("#compact-account-bar").hidden=true;document.querySelector("#import-summary").hidden=true;document.querySelector("#run-forecast-result").hidden=true;document.querySelector("#run-forecast-empty").hidden=false;document.querySelector("#dashboard-content").hidden=true;document.querySelector("#dashboard-no-save").hidden=false;
+    ["normal-practical-plan","normal-maximum-plan","normal-progression-opportunities","normal-rng-opportunities","normal-capped-sources","normal-available-upgrades","normal-next-upgrades","bell-rate-optimizer-summary","bell-rate-plan-comparison","method-quantity-list","bell-rate-candidates-body","rate-dependency-issues","current-distribution-table-body","advanced-distribution-table-body","reward-selection-list","expert-reward-selection-list","confidence-table-body","remaining-opportunities-copy","remaining-opportunities-table-body","opportunities-raw-window-values","pace-window-body","pace-subwindow-body","within-lantern-milestones"].forEach(function(id){var node=document.getElementById(id);if(node)node.replaceChildren();});
+    document.querySelector("#normal-bell-rate").textContent="—";document.querySelector("#normal-bell-rate-exact").textContent="";document.querySelector("#normal-rate-status").textContent="Import a save to reconstruct Bell rates.";["rate-monument-multiplier","rate-measurement-multiplier","rate-method-multiplier","rate-calculated-total","advanced-auto-rate","ringing-current-ring","ringing-progress-values","ringing-progress-percent"].forEach(function(id){var node=document.getElementById(id);if(node)node.textContent="—";});
+    BellOptimizer.bellBenchmarkSection.restoreState(snapshot.benchmark);restoreSemanticControls(snapshot);renewalDecisionController.invalidate();if(BellOptimizer.automaticRunPrototype)BellOptimizer.automaticRunPrototype.invalidateAccount();
+  }
+
+  function importFromText(text, parsedResult) {
+    var result=parsedResult||BellOptimizer.saveParsing.parseBellRewardLevels(text);
+    if(!result.ok){showImportError(result.error.message+(result.error.path?" Path: "+result.error.path:""));return {ok:false,error:result.error};}
+    var transaction=BellOptimizer.activeImportTransaction.execute(result,{
+      getCurrent:function(){return activeImportedResult;},
+      stage:prepareImportedResult,
+      capture:function(){return activeImportedResult?captureSemanticImportState():(canonicalNoAccountState||captureSemanticImportState());},
+      commit:function(staged){applyImportedResult(staged.result);},
+      beforeActivate:function(){importCheckpoint("before-final-activation");},
+      afterActivate:function(){importCheckpoint("after-final-activation");},
+      restorePrevious:restorePreviousImportState,
+      restoreEmpty:restoreEmptyImportState,
+      setCurrent:function(value){activeImportedResult=value;}
+    });
+    if(!transaction.ok)throw transaction.error;
+    return transaction;
   }
 
   function runImportText(text) {
@@ -806,17 +1078,65 @@ BellOptimizer.userInterface = (function () {
   function selectBellRateTab(tabName) {
     var breakdown=tabName==="breakdown",upgrades=tabName==="upgrades",benchmark=tabName==="benchmark",history=tabName==="history";document.querySelector("#bell-rate-breakdown-tab").setAttribute("aria-selected",String(breakdown));document.querySelector("#bell-rate-upgrades-tab").setAttribute("aria-selected",String(upgrades));document.querySelector("#bell-rate-benchmark-tab").setAttribute("aria-selected",String(benchmark));document.querySelector("#bell-rate-history-tab").setAttribute("aria-selected",String(history));document.querySelector("#bell-rate-breakdown-panel").hidden=!breakdown;document.querySelector("#bell-rate-upgrades-panel").hidden=!upgrades;document.querySelector("#bell-rate-benchmark-panel").hidden=!benchmark;document.querySelector("#bell-rate-history-panel").hidden=!history;if(benchmark)BellOptimizer.bellBenchmarkSection.open();if(history)BellOptimizer.bellHistorySection.refresh();
   }
+  function selectWorkspace(workspace,options){
+    options=options||{};if(["run","rate","compare","history"].indexOf(workspace)===-1)return;
+    var run=document.querySelector("#run-optimizer-workspace"),rate=document.querySelector("#rate-optimizer-workspace"),tabs=document.querySelector("#bell-rate-tabs"),title=document.querySelector("#bell-rate-title");
+    document.body.dataset.workspace=workspace;run.hidden=workspace!=="run";rate.hidden=workspace==="run";tabs.hidden=workspace==="compare"||workspace==="history";
+    document.querySelectorAll(".app-navigation [data-workspace]").forEach(function(button){if(button.dataset.workspace===workspace)button.setAttribute("aria-current","page");else button.removeAttribute("aria-current");});
+    if(workspace==="compare"){title.textContent="Compare Accounts";selectBellRateTab("benchmark");}
+    else if(workspace==="history"){title.textContent="Progress History";selectBellRateTab("history");}
+    else if(workspace==="rate"){title.textContent="Bell Rate";var active=document.querySelector('#bell-rate-tabs [aria-selected="true"]');if(!active||active.id==="bell-rate-benchmark-tab"||active.id==="bell-rate-history-tab")selectBellRateTab("breakdown");}
+    if(options.scroll){document.querySelector(workspace==="run"?"#run-optimizer-workspace":"#rate-optimizer-workspace").scrollIntoView({behavior:"smooth",block:"start"});}
+  }
   document.querySelector("#bell-rate-breakdown-tab").addEventListener("click",function(){selectBellRateTab("breakdown");});
   document.querySelector("#bell-rate-upgrades-tab").addEventListener("click",function(){selectBellRateTab("upgrades");});
   document.querySelector("#bell-rate-benchmark-tab").addEventListener("click",function(){selectBellRateTab("benchmark");});
   document.querySelector("#bell-rate-history-tab").addEventListener("click",function(){selectBellRateTab("history");});
-  document.querySelector("#benchmark-shortcut").addEventListener("click",function(){selectBellRateTab("benchmark");});
+  document.querySelector("#benchmark-shortcut").addEventListener("click",function(){selectWorkspace("compare",{scroll:true});});
+  document.querySelector("#nav-run-optimizer").addEventListener("click",function(){selectWorkspace("run");});
+  document.querySelector("#nav-rate-optimizer").addEventListener("click",function(){selectWorkspace("rate");});
+  document.querySelector("#header-open-compare").addEventListener("click",function(){selectWorkspace("compare");});
+  document.querySelector("#header-open-history").addEventListener("click",function(){selectWorkspace("history");});
+  document.querySelector("#run-open-rate-optimizer").addEventListener("click",function(){selectWorkspace("rate",{scroll:true});});
+  document.querySelector("#rate-open-run-optimizer").addEventListener("click",function(){selectWorkspace("run",{scroll:true});});
+  document.querySelector("#change-save-button").addEventListener("click",function(){document.querySelector("#save-import-panel").classList.remove("is-imported");document.querySelector("#compact-account-bar").hidden=true;document.querySelector("#json-file").focus();});
+  document.querySelector("#dashboard-open-breakdown").addEventListener("click",function(){selectBellRateTab("breakdown");document.querySelector("#bell-rate-section").scrollIntoView({behavior:"smooth",block:"start"});});
+  document.querySelector("#dashboard-open-upgrades").addEventListener("click",function(){selectBellRateTab("upgrades");document.querySelector("#bell-rate-section").scrollIntoView({behavior:"smooth",block:"start"});});
+  document.querySelector("#dashboard-active-character").addEventListener("change",function(){var legacy=document.querySelector("#bell-rate-character-select");if(legacy)legacy.value=this.value;if(importedDashboardData)try{renderDashboard({data:importedDashboardData});}catch(error){console.error("Bell Dashboard character selection failed:",error);}});
+  document.querySelector("#dashboard-find-plan").addEventListener("click",function(){
+    var status=document.querySelector("#dashboard-goal-status"),parsed=BellOptimizer.idleonNumberFormat.parse(document.querySelector("#dashboard-goal-input").value);
+    if(!importedBellRateState){status.className="import-status error";status.textContent="Import your save before setting a Ring Rate goal.";return;}
+    if(!parsed.ok){status.className="import-status error";status.textContent="Enter a positive Ring Rate using plain digits, scientific notation, or K, M, B, T, Q, or QQ.";document.querySelector("#dashboard-goal-result").hidden=true;return;}
+    status.className="import-status";status.textContent="Finding a verified plan…";
+    try{var baseState=dashboardStateWithCharacter(),targetResult=BellOptimizer.bellRateTargetSolver.solve({baseState:baseState,targetRate:parsed.value}),model=BellOptimizer.bellTargetViewModel.build(targetResult,BellOptimizer.idleonNumberFormat.format,baseState);dashboardRingRateGoal=parsed.value;renderDashboardTarget(model);}catch(error){console.error("Bell Ring Rate goal failed:",error);renderDashboardTarget(BellOptimizer.bellTargetViewModel.build({ok:false,error:{message:BellOptimizer.saveImportWorkflow.safeMessage(error)}},BellOptimizer.idleonNumberFormat.format));}
+  });
+  document.querySelectorAll('[name="collectible-target-mode"]').forEach(function(input){input.addEventListener("change",syncCollectibleInputs);});
+  syncCollectibleInputs();
+  document.querySelector("#calculate-collectible-what-if").addEventListener("click",function(){
+    var status=document.querySelector("#collectible-what-if-status"),jar11=parseCollectibleLevel(document.querySelector("#collectible-jar11-input"),"Big Beef Rock Jar"),jar36=parseCollectibleLevel(document.querySelector("#collectible-jar36-input"),"Twisted Rupie Jar");
+    if(!importedBellRateState){status.className="import-status error";status.textContent="Import your save before exploring collectible levels.";return;}
+    if(!jar11.ok||!jar36.ok){status.className="import-status error";status.textContent=(jar11.ok?jar36:jar11).message;document.querySelector("#collectible-what-if-result").hidden=true;return;}
+    if(jar11.empty&&jar36.empty){status.className="import-status error";status.textContent="Enter at least one hypothetical Jar level.";document.querySelector("#collectible-what-if-result").hidden=true;return;}
+    var input={baseState:dashboardStateWithCharacter()},mode=collectibleMode();if(!jar11.empty)input[mode==="delta"?"jar11Delta":"jar11Level"]=jar11.value;if(!jar36.empty)input[mode==="delta"?"jar36Delta":"jar36Level"]=jar36.value;
+    try{var scenario=BellOptimizer.bellRateTargetSolver.manualJarScenario(input);if(!scenario.ok)throw new Error(scenario.error.message);renderCollectibleScenario(scenario);status.className="import-status success";status.textContent="Hypothetical Ring Rate calculated from the verified Bell formula.";}catch(error){console.error("Collectible what-if failed:",error);status.className="import-status error";status.textContent=BellOptimizer.saveImportWorkflow.safeMessage(error);document.querySelector("#collectible-what-if-result").hidden=true;}
+  });
+  document.querySelector("#dashboard-collectible-future").addEventListener("click",function(){var details=document.querySelector("#dashboard-collectible-what-if");details.open=true;details.scrollIntoView({behavior:"smooth",block:"start"});document.querySelector("#collectible-jar11-max").focus();});
+  document.querySelector("#find-collectible-combinations").addEventListener("click",function(){
+    var status=document.querySelector("#collectible-combination-status"),max11=parseCollectibleLevel(document.querySelector("#collectible-jar11-max"),"Big Beef Rock maximum"),max36=parseCollectibleLevel(document.querySelector("#collectible-jar36-max"),"Twisted Rupie maximum");
+    if(!importedBellRateState||dashboardRingRateGoal==null){status.className="import-status error";status.textContent="Enter an unreachable Ring Rate goal first.";return;}
+    if(!max11.ok||!max36.ok||max11.empty||max36.empty){status.className="import-status error";status.textContent=(!max11.ok?max11.message:!max36.ok?max36.message:"Enter both hypothetical maximum levels.");return;}
+    try{var result=BellOptimizer.bellRateTargetSolver.solve({baseState:dashboardStateWithCharacter(),targetRate:dashboardRingRateGoal,jarScenario:{enabled:true,jar11MaxLevel:max11.value,jar36MaxLevel:max36.value}});renderCollectibleCombinations(result);}catch(error){console.error("Collectible combination search failed:",error);status.className="import-status error";status.textContent=BellOptimizer.saveImportWorkflow.safeMessage(error);}
+  });
   document.querySelectorAll(".rate-factor-details").forEach(function(details){var summary=details.querySelector("summary");function syncExpanded(){summary.setAttribute("aria-expanded",String(details.open));}syncExpanded();details.addEventListener("toggle",syncExpanded);});
   try { BellOptimizer.bellHistorySection.bind();BellOptimizer.bellHistorySection.initialize().catch(function(error){console.error("Bell Progress History initialization failed:",error);}); } catch(error) { console.error("Bell Progress History controls failed to initialize:",error); }
   try { BellOptimizer.bellHistoryPresentation.initialize(); } catch(error) { console.error("Bell Progress History presentation failed to initialize:",error); }
   try { BellOptimizer.bellBenchmarkSection.bind(); } catch(error) { console.error("Benchmark Compare controls failed to initialize:",error); }
-  document.querySelector("#normal-candidate-affordable-first").addEventListener("change",renderCandidateRows);
-  document.querySelectorAll(".bell-stat-filter-button").forEach(function(button){button.addEventListener("click",function(){selectedBellStat=button.dataset.bellStat;document.querySelectorAll(".bell-stat-filter-button").forEach(function(item){var selected=item===button;item.classList.toggle("selected",selected);item.setAttribute("aria-pressed",String(selected));});renderPrimaryRateRecommendation();renderCandidateRows();});});
+  if (BellOptimizer.developerMode && BellOptimizer.developerMode.enabled) {
+    try { BellOptimizer.automaticRunPrototype.initialize({ getSnapshot: automaticPrototypeSnapshot }); } catch(error) { console.error("Automatic Run Evaluator Prototype failed to initialize:",error); }
+  }
+  document.querySelectorAll(".bell-stat-filter-button").forEach(function(button){button.addEventListener("click",function(){selectedBellStat=button.dataset.bellStat;document.querySelectorAll(".bell-stat-filter-button").forEach(function(item){var selected=item===button;item.classList.toggle("selected",selected);item.setAttribute("aria-pressed",String(selected));});renderPrimaryRateRecommendation();renderCandidateRows();renderUpgradeOpportunities();});});
+  selectWorkspace("run");
+  document.querySelector(".decision-calibration p").textContent="Fresh P80 defines elite upside. Achieved P80/P90 results are preserved; opposing upside cannot override an expected finish more than 20% worse. P80 probability, expected P80 excess, and quartic percentile utility vote by consensus.";
 
   ['[name="majorBonus"]', '[name="minimumNormalGain"]', '[name="maximumNormalGain"]', '[name="doubleEnabled"]', '[name="doubleLevelChance"]', '[name="currentRing"]'].forEach(function (selector) {
     document.querySelector(selector).addEventListener("input", refreshMechanicsPreview);
@@ -830,8 +1150,10 @@ BellOptimizer.userInterface = (function () {
   refreshRewardSelectionPreview();
   document.querySelector("#evaluate-target").addEventListener("click", evaluateSelectedTarget);
   document.querySelector("#check-my-run").addEventListener("click", checkMyRun);
+  document.querySelector("#run-advanced-renewal").addEventListener("click", requestAdvancedRenewalDecision);
   document.querySelectorAll(".goal-preset[data-reward-index]").forEach(function (button) { button.addEventListener("click", function () { selectGoal(button); }); });
   selectGoal(document.querySelector('.goal-preset[data-reward-index="6"]'));
+  canonicalNoAccountState=captureSemanticImportState();
 
-  return { status: "ready", importBellLevelsFromText: runImportText, refreshMechanicsPreview: refreshMechanicsPreview, refreshRewardSelectionPreview: refreshRewardSelectionPreview, evaluateSelectedTarget: evaluateSelectedTarget, checkMyRun: checkMyRun, selectGoal: selectGoal, friendlyQuality: friendlyQuality };
+  return { status: "ready", importBellLevelsFromText: runImportText, refreshMechanicsPreview: refreshMechanicsPreview, refreshRewardSelectionPreview: refreshRewardSelectionPreview, evaluateSelectedTarget: evaluateSelectedTarget, checkMyRun: checkMyRun, selectGoal: selectGoal, friendlyQuality: friendlyQuality, _test:{setImportFailureStage:function(stage){activeImportFailureStage=stage||null;},captureSemanticImportState:captureSemanticImportState} };
 }());

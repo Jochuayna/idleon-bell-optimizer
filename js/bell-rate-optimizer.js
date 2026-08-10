@@ -174,5 +174,139 @@ BellOptimizer.bellRateOptimizer = (function () {
     var result={ok:true,mode:mode,noSpending:noPlan,practicalPlan:practicalPlan,bellOnlyMaximum:maximumPlan,playerConstrainedPlan:playerPlan,recommendedPlan:mode==="maximum"?maximumPlan:mode==="player-budget"?playerPlan:practicalPlan,searchMethod:(unconstrained.bounded||constrained.bounded)?"bounded exact":"exact",statesEvaluated:unconstrained.statesEvaluated+(constrained===unconstrained?0:constrained.statesEvaluated),searchSafetyLimit:unconstrained.safety,searchLimitWarning:maximumSelected.ids.some(function(id){return maximumSelected.levelsByUpgrade[id]>=unconstrained.safety;}),bestUpgradesToWorkToward:unconstrained.initial.candidates.filter(function(c){return c.deterministicPurchase&&!c.affordableNow&&c.complete&&c.absoluteRateGain>0;}).sort(function(a,b){return b.percentageRateGain-a.percentageRateGain;}),progressionAndRngOpportunities:unconstrained.initial.candidates.filter(function(c){return c.eligibilityCategory==="Progression targets"||c.eligibilityCategory==="RNG-dependent"||c.eligibilityCategory==="Capped";})};
     if(JSON.stringify(inputState)!==original)return {ok:false,error:"Optimizer mutated its input state."};return result;
   }
-  return { STATE_LIMIT:STATE_LIMIT, applyPurchase:applyPurchase, spendingLimit:spendingLimit, optimize:optimize, comparePlans:comparePlans };
+
+  var AFFORDABLE_SCHEMA_VERSION=1;
+  function automaticReason(candidate) {
+    if(candidate.id==="jar-11"||candidate.id==="jar-36")return "RNG_PROGRESSION_MANUAL_ONLY";
+    if(candidate.system==="Death Note")return "ACCOUNT_PROGRESSION_NOT_PURCHASE";
+    if(candidate.system==="Monument")return "RNG_OR_STORY_PROGRESSION";
+    if(candidate.capped)return "CAPPED";
+    if(candidate.status==="progression-gated"||candidate.eligibilityCategory==="Progression targets")return "LOCKED_OR_PROGRESSION_GATED";
+    if(!candidate.deterministicPurchase)return "NO_VERIFIED_PURCHASE_MECHANIC";
+    if(!candidate.complete||candidate.costResolved===false||!finite(candidate.ownedResource))return "RESOURCE_BALANCE_UNRESOLVED";
+    if(candidate.validationValid===false)return "INVALID_CANDIDATE";
+    return null;
+  }
+  function ringAutomaticCandidate(candidate) {
+    if(automaticReason(candidate)!==null)return false;
+    if((candidate.effects||[candidate.effect||"Bell Ring"]).indexOf("Bell Ring")===-1&&candidate.purchaseKind!=="bell-method")return false;
+    return candidate.eligibilityCategory==="Purchasable now"&&candidate.affordableNow;
+  }
+  function stateKey(state) {
+    return JSON.stringify([state.bellMethodLevels,state.rateInputs,state.methodOwnedResources,state.cosmoPointsLeft,state.fountainCurrency,state.marbleCurrency,state.measurementCurrency]);
+  }
+  function candidateOrder(initial) {
+    return initial.candidates.filter(function(candidate){return candidate.deterministicPurchase&&candidate.resourcePoolId;}).map(function(candidate){return candidate.id;}).filter(function(id,index,all){return all.indexOf(id)===index;}).sort();
+  }
+  function excludedOpportunities(initial) {
+    return initial.candidates.map(function(candidate){var reason=automaticReason(candidate),methodCrossInteraction=candidate.purchaseKind==="bell-method";if(reason===null&&!methodCrossInteraction&&((candidate.effects||[candidate.effect||"Bell Ring"]).indexOf("Bell Ring")===-1))reason="DOES_NOT_AFFECT_BELL_RING";if(reason===null&&!candidate.affordableNow)reason="NOT_CURRENTLY_AFFORDABLE";return reason?{candidateId:candidate.id,source:candidate.name,system:candidate.system,reason:reason}:null;}).filter(Boolean);
+  }
+  function replayAffordablePlan(baseState, ids, baselineRate) {
+    var state=clone(baseState),sequence=[],spent=Object.create(null),starting=Object.create(null),resourceNames=Object.create(null);
+    ids.forEach(function(id,index){
+      var generated=BellOptimizer.bellRateUpgradeCandidates.generate(state),candidate=generated.candidates.find(function(item){return item.id===id;});
+      if(!candidate||!ringAutomaticCandidate(candidate))throw new Error("A selected purchase is no longer legal during replay: "+id);
+      if(starting[candidate.resourcePoolId]===undefined)starting[candidate.resourcePoolId]=candidate.ownedResource+(spent[candidate.resourcePoolId]||0);
+      resourceNames[candidate.resourcePoolId]=candidate.costResource;
+      var next=applyPurchase(state,candidate),rate=BellOptimizer.bellRateUpgradeCandidates.recompute(next,{}).calculatedRate;
+      spent[candidate.resourcePoolId]=(spent[candidate.resourcePoolId]||0)+candidate.cost;
+      sequence.push({step:index+1,candidateId:candidate.id,source:candidate.name,system:candidate.system,currentValue:candidate.currentLevel,targetValue:candidate.nextLevel,resourcePoolId:candidate.resourcePoolId,resource:candidate.costResource,cost:candidate.cost,rateBefore:generated.baselineRate,rateAfter:rate,absoluteGain:rate-generated.baselineRate,relativeGain:generated.baselineRate>0?(rate/generated.baselineRate-1):null,affordability:"VERIFIED",prerequisites:candidate.prerequisite});
+      state=next;
+    });
+    var groups=[];
+    sequence.forEach(function(step){var last=groups[groups.length-1];if(last&&last.candidateId===step.candidateId){last.targetValue=step.targetValue;last.levelsGained+=1;last.totalCost+=step.cost;last.cumulativeProjectedRate=step.rateAfter;last.cumulativeGain=step.rateAfter-baselineRate;last.cumulativeRelativeGain=baselineRate>0?step.rateAfter/baselineRate-1:null;}else groups.push({candidateId:step.candidateId,source:step.source,system:step.system,currentValue:step.currentValue,targetValue:step.targetValue,levelsGained:1,resourcePoolId:step.resourcePoolId,resource:step.resource,totalCost:step.cost,startingBalance:starting[step.resourcePoolId],remainingBalance:null,cumulativeProjectedRate:step.rateAfter,cumulativeGain:step.rateAfter-baselineRate,cumulativeRelativeGain:baselineRate>0?step.rateAfter/baselineRate-1:null,affordability:"VERIFIED",prerequisites:step.prerequisites,reason:"Selected by exhaustive currently-affordable Bell Ring search."});});
+    var pools=Object.keys(starting).sort().map(function(poolId){var total=spent[poolId]||0,remaining=starting[poolId]-total;groups.filter(function(group){return group.resourcePoolId===poolId;}).forEach(function(group){group.remainingBalance=remaining;});return {resourcePoolId:poolId,resource:resourceNames[poolId],startingBalance:starting[poolId],spent:total,remaining:remaining};});
+    return {state:state,purchaseSequence:sequence,recommendedChanges:groups,resourcePools:pools};
+  }
+  function optimizeCurrentlyAffordableReference(inputState, options) {
+    options=options||{};
+    var started=Date.now(),original=JSON.stringify(inputState),base=clone(inputState),initial=BellOptimizer.bellRateUpgradeCandidates.generate(base);
+    if(!initial.ok)return {ok:false,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:"UNAVAILABLE",error:initial.error};
+    var maximumStates=Math.max(1,Math.floor(options.maximumStates==null?100000:options.maximumStates));
+    var maximumCandidateLevels=Math.max(0,Math.floor(options.maximumCandidateLevels==null?1000:options.maximumCandidateLevels));
+    var maximumFrontierEntries=Math.max(1,Math.floor(options.maximumFrontierEntries==null?100000:options.maximumFrontierEntries));
+    var order=candidateOrder(initial),orderIndex=Object.create(null);order.forEach(function(id,index){orderIndex[id]=index;});
+    var memo=Object.create(null),frontiers=Object.create(null),stats={legalPurchaseTransitionsConsidered:0,completeStatesEvaluated:0,statesMemoized:0,statesPruned:0,canonicalRateRecomputations:0},truncated=false,boundsHit=[];
+    var baseline=initial.baselineRate,best={rate:baseline,state:clone(base),ids:[],counts:Object.create(null)};
+    function hit(reason,candidateId){truncated=true;var key=reason+":"+(candidateId||"");if(boundsHit.indexOf(key)===-1)boundsHit.push(key);}
+    function visit(state,ids,counts,minimumOrder) {
+      if(stats.completeStatesEvaluated>=maximumStates){hit("MAXIMUM_STATES");return;}
+      var key=stateKey(state);if(memo[key]){stats.statesPruned+=1;return;}memo[key]=true;stats.statesMemoized+=1;
+      if(stats.statesMemoized>maximumFrontierEntries){hit("MAXIMUM_FRONTIER_ENTRIES");return;}
+      var generated=BellOptimizer.bellRateUpgradeCandidates.generate(state);stats.completeStatesEvaluated+=1;stats.canonicalRateRecomputations+=1;
+      if(!generated.ok)return;
+      var rate=generated.baselineRate;
+      if(rate>best.rate||rate===best.rate&&ids.length<best.ids.length){best={rate:rate,state:clone(state),ids:ids.slice(),counts:Object.assign(Object.create(null),counts)};}
+      generated.candidates.filter(ringAutomaticCandidate).sort(function(a,b){return orderIndex[a.id]-orderIndex[b.id];}).forEach(function(candidate){
+        var position=orderIndex[candidate.id];if(position<minimumOrder)return;
+        stats.legalPurchaseTransitionsConsidered+=1;
+        var count=counts[candidate.id]||0;
+        if(count>=maximumCandidateLevels){hit("MAXIMUM_CANDIDATE_LEVELS",candidate.id);return;}
+        var next=applyPurchase(state,candidate);if(!next)return;
+        var nextCounts=Object.assign(Object.create(null),counts);nextCounts[candidate.id]=count+1;
+        if(!frontiers[candidate.resourcePoolId])frontiers[candidate.resourcePoolId]=Object.create(null);frontiers[candidate.resourcePoolId][stateKey(next)]=true;
+        visit(next,ids.concat(candidate.id),nextCounts,position);
+      });
+    }
+    visit(base,[],Object.create(null),0);
+    var replay;
+    try{replay=replayAffordablePlan(base,best.ids,baseline);}catch(error){return {ok:false,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:"UNAVAILABLE",error:error.message};}
+    var optimized=BellOptimizer.bellRateUpgradeCandidates.recompute(replay.state,{});stats.canonicalRateRecomputations+=1;
+    var initialExcluded=excludedOpportunities(initial),activeCoin=initial.candidates.find(function(c){return c.id==="bell-method-0";});
+    var warnings=["This optimizes Bell Ring Rate only and does not value competing non-Bell uses of these resources."];
+    if(activeCoin&&automaticReason(activeCoin)==="RESOURCE_BALANCE_UNRESOLVED")warnings.push("Method 0 was excluded because the active character Coin balance was not explicitly selected.");
+    if(truncated)warnings.push("Search bounds were reached; the result is optimal only within the reported bounds.");
+    if(JSON.stringify(inputState)!==original)return {ok:false,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:"UNAVAILABLE",error:"Optimizer mutated its input state."};
+    return {ok:true,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:truncated?"BOUNDED_EXACT":"EXACT",currentRate:baseline,optimizedRate:optimized.calculatedRate,absoluteGain:optimized.calculatedRate-baseline,relativeGain:baseline>0?optimized.calculatedRate/baseline-1:0,recommendedChanges:replay.recommendedChanges,purchaseSequence:replay.purchaseSequence,resourcePools:replay.resourcePools,excludedOpportunities:initialExcluded,optimizedState:replay.state,orderIndependent:true,assumptions:["Only verified deterministic purchases funded by current imported balances are eligible.","Presentation order is deterministic; independent-pool purchase order is not claimed to be unique."],warnings:warnings,search:{algorithm:"deterministic canonical purchase-multiset enumeration",statesEvaluated:stats.completeStatesEvaluated,statesMemoized:stats.statesMemoized,statesPruned:stats.statesPruned,legalPurchaseTransitionsConsidered:stats.legalPurchaseTransitionsConsidered,frontierStates:Object.keys(memo).length,frontierSizeByResourcePool:Object.keys(frontiers).sort().map(function(pool){return {resourcePoolId:pool,size:Object.keys(frontiers[pool]).length};}),combinedFrontierSize:Object.keys(memo).length,canonicalRateRecomputations:stats.canonicalRateRecomputations,bounds:{maximumStates:maximumStates,maximumFrontierEntries:maximumFrontierEntries,maximumCandidateLevels:maximumCandidateLevels,hit:boundsHit},truncated:truncated,runtimeMilliseconds:Date.now()-started}};
+  }
+  function exactAffordableCapacity(baseState,candidateId,limit,diagnostics) {
+    var state=clone(baseState),ids=[],bounded=false;
+    while(ids.length<limit){var generated=BellOptimizer.bellRateUpgradeCandidates.generate(state),candidate=generated.ok&&generated.candidates.find(function(item){return item.id===candidateId;});diagnostics.candidateGenerations+=1;if(!candidate||!ringAutomaticCandidate(candidate))break;var next=applyPurchase(state,candidate);if(!next)break;state=next;ids.push(candidateId);diagnostics.legalPurchaseTransitionsConsidered+=1;}
+    var after=BellOptimizer.bellRateUpgradeCandidates.generate(state),still=after.ok&&after.candidates.find(function(item){return item.id===candidateId;});diagnostics.candidateGenerations+=1;if(ids.length>=limit&&still&&ringAutomaticCandidate(still))bounded=true;
+    return {count:ids.length,ids:ids,state:state,bounded:bounded};
+  }
+  function methodPurchasePlan(baseState,maximumCandidateLevels,diagnostics) {
+    var direct=[0,2,4,5],bridges=[1,3],capacities={},methodStates=1;
+    direct.concat(bridges).forEach(function(index){var id="bell-method-"+index,result=exactAffordableCapacity(baseState,id,maximumCandidateLevels,diagnostics);capacities[index]=result.count;methodStates+=result.count;diagnostics.bounded=diagnostics.bounded||result.bounded;if(result.bounded)diagnostics.boundsHit.push("METHOD_LEVEL_LIMIT:"+id);});
+    var ids=[];direct.forEach(function(index){for(var count=0;count<capacities[index];count+=1)ids.push("bell-method-"+index);});
+    var currentTotal=baseState.bellMethodLevels.slice(0,6).reduce(function(sum,level){return sum+level;},0),directAdded=direct.reduce(function(sum,index){return sum+capacities[index];},0),bridgeCapacity=capacities[1]+capacities[3],highestExponent=baseState.upgrade45Owned?Math.floor((currentTotal+directAdded+bridgeCapacity)/25):Math.floor(currentTotal/25),bridgeNeeded=baseState.upgrade45Owned?Math.max(0,highestExponent*25-(currentTotal+directAdded)):0;
+    bridges.forEach(function(index){var take=Math.min(bridgeNeeded,capacities[index]);for(var count=0;count<take;count+=1)ids.push("bell-method-"+index);bridgeNeeded-=take;});
+    diagnostics.methodStatesEnumerated=methodStates;diagnostics.methodFrontierSize=1;diagnostics.methodStatesPruned=Math.max(0,methodStates-1);
+    return {ids:ids,capacities:capacities,highestExponent:highestExponent};
+  }
+  function applyIdSequence(baseState,ids) {
+    var state=clone(baseState),applied=[];
+    for(var index=0;index<ids.length;index+=1){var generated=BellOptimizer.bellRateUpgradeCandidates.generate(state),candidate=generated.ok&&generated.candidates.find(function(item){return item.id===ids[index];});if(!candidate||!ringAutomaticCandidate(candidate))return {ok:false,error:"A decomposed purchase became illegal: "+ids[index]};state=applyPurchase(state,candidate);applied.push(ids[index]);}
+    return {ok:true,state:state,ids:applied};
+  }
+  function maximizeIndependentGroups(baseState,maximumCandidateLevels,diagnostics) {
+    var ids=[],state=clone(baseState),groups=["fountain-monumental-boost","fountain-monumental-marble","measurement-ringing"];
+    groups.forEach(function(id){var count=0;while(count<maximumCandidateLevels){var generated=BellOptimizer.bellRateUpgradeCandidates.generate(state),candidate=generated.ok&&generated.candidates.find(function(item){return item.id===id;});diagnostics.candidateGenerations+=1;if(!candidate||!ringAutomaticCandidate(candidate))break;state=applyPurchase(state,candidate);ids.push(id);count+=1;diagnostics.legalPurchaseTransitionsConsidered+=1;}var finalGenerated=BellOptimizer.bellRateUpgradeCandidates.generate(state),next=finalGenerated.ok&&finalGenerated.candidates.find(function(item){return item.id===id;});diagnostics.candidateGenerations+=1;if(count>=maximumCandidateLevels&&next&&ringAutomaticCandidate(next)){diagnostics.bounded=true;diagnostics.boundsHit.push("INDEPENDENT_LEVEL_LIMIT:"+id);}diagnostics.independentGroupStates+=count+1;});
+    return {state:state,ids:ids};
+  }
+  function optimizeCosmoGroup(baseState,maximumFrontierEntries,diagnostics) {
+    var ids=["measurement-cosmo","monument-cosmo"],states=[],seen=Object.create(null),bounded=false;
+    function visit(state,path,minimum){var key=stateKey(state);if(seen[key])return;seen[key]=true;if(states.length>=maximumFrontierEntries){bounded=true;return;}var rate=BellOptimizer.bellRateUpgradeCandidates.recompute(state,{}).calculatedRate;diagnostics.canonicalRateRecomputations+=1;states.push({state:clone(state),ids:path.slice(),rate:rate,points:path.length});for(var index=minimum;index<ids.length;index+=1){var generated=BellOptimizer.bellRateUpgradeCandidates.generate(state),candidate=generated.ok&&generated.candidates.find(function(item){return item.id===ids[index];});diagnostics.candidateGenerations+=1;if(!candidate||!ringAutomaticCandidate(candidate))continue;diagnostics.legalPurchaseTransitionsConsidered+=1;visit(applyPurchase(state,candidate),path.concat(ids[index]),index);}}
+    visit(baseState,[],0);
+    var frontier=states.filter(function(candidate){return !states.some(function(other){return other!==candidate&&other.points<=candidate.points&&other.rate>=candidate.rate&&(other.points<candidate.points||other.rate>candidate.rate);});});
+    var best=states.reduce(function(current,item){return !current||item.rate>current.rate||item.rate===current.rate&&item.ids.length<current.ids.length||item.rate===current.rate&&item.ids.length===current.ids.length&&item.ids.join("|")<current.ids.join("|")?item:current;},null);
+    diagnostics.cosmoStatesEnumerated=states.length;diagnostics.cosmoFrontierSize=frontier.length;diagnostics.cosmoStatesPruned=states.length-frontier.length;if(bounded){diagnostics.bounded=true;diagnostics.boundsHit.push("COSMO_FRONTIER_LIMIT");}
+    return best||{state:clone(baseState),ids:[],rate:BellOptimizer.bellRateUpgradeCandidates.recompute(baseState,{}).calculatedRate};
+  }
+  function optimizeCurrentlyAffordable(inputState,options) {
+    options=options||{};var started=Date.now(),original=JSON.stringify(inputState),base=clone(inputState),initial=BellOptimizer.bellRateUpgradeCandidates.generate(base);
+    if(!initial.ok)return {ok:false,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:"UNAVAILABLE",error:initial.error};
+    var maximumStates=Math.max(1,Math.floor(options.maximumStates==null?100000:options.maximumStates)),maximumFrontierEntries=Math.max(1,Math.floor(options.maximumFrontierEntries==null?100000:options.maximumFrontierEntries)),maximumCandidateLevels=Math.max(0,Math.floor(options.maximumCandidateLevels==null?1000:options.maximumCandidateLevels));
+    var d={methodStatesEnumerated:0,methodFrontierSize:0,methodStatesPruned:0,cosmoStatesEnumerated:0,cosmoFrontierSize:0,cosmoStatesPruned:0,independentGroupStates:0,frontierCombinationStates:1,canonicalRateRecomputations:0,purchaseReplayTransitions:0,legalPurchaseTransitionsConsidered:0,candidateGenerations:0,bounded:false,boundsHit:[]};
+    var methods=methodPurchasePlan(base,maximumCandidateLevels,d),methodApplied=applyIdSequence(base,methods.ids);if(!methodApplied.ok)return {ok:false,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:"UNAVAILABLE",error:methodApplied.error};
+    var independent=maximizeIndependentGroups(methodApplied.state,maximumCandidateLevels,d),cosmo=optimizeCosmoGroup(independent.state,maximumFrontierEntries,d),allIds=methods.ids.concat(independent.ids,cosmo.ids),structuralWork=d.methodStatesEnumerated+d.independentGroupStates+d.cosmoStatesEnumerated;
+    if(structuralWork>maximumStates){d.bounded=true;d.boundsHit.push("MAXIMUM_STATES_DIAGNOSTIC");}
+    var replay;try{replay=replayAffordablePlan(base,allIds,initial.baselineRate);d.purchaseReplayTransitions=allIds.length;}catch(error){return {ok:false,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:"UNAVAILABLE",error:error.message};}
+    var finalRate=BellOptimizer.bellRateUpgradeCandidates.recompute(replay.state,{}).calculatedRate;d.canonicalRateRecomputations+=1;
+    var warnings=["This optimizes Bell Ring Rate only and does not value competing non-Bell uses of these resources."],activeCoin=initial.candidates.find(function(candidate){return candidate.id==="bell-method-0";});if(activeCoin&&automaticReason(activeCoin)==="RESOURCE_BALANCE_UNRESOLVED")warnings.push("Method 0 was excluded because the active character Coin balance was not explicitly selected.");if(d.bounded)warnings.push("A structural safety limit was reached; the result is optimal only inside the reported bound.");
+    if(JSON.stringify(inputState)!==original)return {ok:false,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:"UNAVAILABLE",error:"Optimizer mutated its input state."};
+    return {ok:true,schemaVersion:AFFORDABLE_SCHEMA_VERSION,completeness:d.bounded?"BOUNDED_EXACT":"EXACT",currentRate:initial.baselineRate,optimizedRate:finalRate,absoluteGain:finalRate-initial.baselineRate,relativeGain:initial.baselineRate>0?finalRate/initial.baselineRate-1:0,recommendedChanges:replay.recommendedChanges,purchaseSequence:replay.purchaseSequence,resourcePools:replay.resourcePools,excludedOpportunities:excludedOpportunities(initial),optimizedState:replay.state,orderIndependent:true,assumptions:["Only verified deterministic purchases funded by current imported balances are eligible.","Direct independent upgrades are monotone positive factors and are maximized exactly.","Bell Methods are coupled only through the verified total-level Upgrade 45 exponent.","Cosmo allocations remain coupled through their shared point balance."],warnings:warnings,search:{algorithm:"exact decomposed monotone groups with shared-Cosmo frontier",statesEvaluated:structuralWork,statesMemoized:d.methodFrontierSize+d.cosmoFrontierSize+d.independentGroupStates,statesPruned:d.methodStatesPruned+d.cosmoStatesPruned,legalPurchaseTransitionsConsidered:d.legalPurchaseTransitionsConsidered,frontierStates:d.methodFrontierSize+d.cosmoFrontierSize+d.independentGroupStates,frontierSizeByResourcePool:[],combinedFrontierSize:1,canonicalRateRecomputations:d.canonicalRateRecomputations,methodStatesEnumerated:d.methodStatesEnumerated,methodFrontierSize:d.methodFrontierSize,methodStatesPruned:d.methodStatesPruned,cosmoStatesEnumerated:d.cosmoStatesEnumerated,cosmoFrontierSize:d.cosmoFrontierSize,cosmoStatesPruned:d.cosmoStatesPruned,independentGroupStates:d.independentGroupStates,frontierCombinationStates:d.frontierCombinationStates,purchaseReplayTransitions:d.purchaseReplayTransitions,candidateGenerations:d.candidateGenerations,bounds:{maximumStates:maximumStates,maximumFrontierEntries:maximumFrontierEntries,maximumCandidateLevels:maximumCandidateLevels,hit:d.boundsHit},truncated:d.bounded,runtimeMilliseconds:Date.now()-started}};
+  }
+  function composeAffordableWithJarScenario(optimizationResult,jarOverrides){if(!optimizationResult||!optimizationResult.ok||!optimizationResult.optimizedState)return {ok:false,error:{code:"INVALID_OPTIMIZATION_RESULT",message:"A successful deterministic optimization result is required."}};return BellOptimizer.bellRateScenario.evaluate({baseState:optimizationResult.optimizedState,overrides:jarOverrides||{}});}
+  return { STATE_LIMIT:STATE_LIMIT, applyPurchase:applyPurchase, spendingLimit:spendingLimit, optimize:optimize, comparePlans:comparePlans, optimizeCurrentlyAffordable:optimizeCurrentlyAffordable, optimizeCurrentlyAffordableReference:optimizeCurrentlyAffordableReference, composeAffordableWithJarScenario:composeAffordableWithJarScenario, automaticReason:automaticReason };
 }());

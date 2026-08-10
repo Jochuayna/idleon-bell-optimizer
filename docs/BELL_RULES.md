@@ -269,6 +269,8 @@ Upgrade 45 returns zero when unowned. When owned, its multiplier is `max(1, 1.1 
 
 This `max` is important: when upgrade 45 is unowned, its zero multiplier produces the unscaled `2 * methodLevel` quantity. Ringing uses only methods 0, 2, 4, and 5. Their quantities sum to a percentage, and `ringingMethodMultiplier = 1 + ringingMethodBonusPercent / 100`.
 
+`totalMethodLevels` is the sum of all six Method levels, including Clean Method 1 and Ping Method 3. Those two Methods do not contribute their own quantities directly to Bell Ring. Away from a multiple-of-25 boundary, buying either produces zero Bell Ring gain. If the purchase crosses one or more total-Method multiples of 25, however, Upgrade 45 increases its global exponential multiplier and legitimately rescales Methods 0, 2, 4, and 5. Ring recommendations must describe such purchases as global Method-scaling bridges rather than direct Clean/Ping contributions to Ring.
+
 ## Ringing EXP/hour dependency trace
 
 The bundle uses `10 × Monument × Measurement × Method × Jar11 × Jar36`. Verified Jar bases are 25 and 75, and Legend talent 29 adds 20% to both Jar bonuses per talent level. Levels 11 and 13 with talent level 5 produce `6.5×`, `20.5×`, and `133.25×` combined.
@@ -417,7 +419,7 @@ Verified activity rates from `BellExpPerHR` are:
 These are separate progression meters, not interchangeable percentages. Bell Ping completion increments `Holes[7][4]` and creates an Opal. Bell Clean completion makes the verified `BellMethodsNewODDS` roll and, on success, increments `Holes[18][5]` to unlock another method. Only Bell Ring EXP/hour drives Ring roll projections.
 ## Upgrade Paths stat filtering
 
-Upgrade candidates are separated into Bell Ring, Bell Ping, and Bell Clean dimensions. Bell Ring is the default. Candidate ordering is the stable generation order (Bell Methods first, followed by verified Monument, Cosmo, Fountain, Measurement, Death Note, and Jar sources), with capped rows moved last. The optional Affordable first control groups affordable active, not-affordable active, then capped rows without changing relative order inside a group.
+Upgrade candidates are separated into Bell Ring, Bell Ping, and Bell Clean dimensions. Bell Ring is the default. The player-facing Upgrade Paths view groups verified candidates into Available now, Next upgrades, Longer-term account goals, Collectible opportunities, and Capped / unavailable. Technical candidate identifiers and save paths remain outside the normal rows.
 
 Candidate `Rate gained` is the complete affected-stat rate after the one-step change minus its complete current rate. Ring method candidates include Monument, Measurement, both Ringing Jar multipliers, and the recomputed method multiplier; Ping and Clean retain their separate verified formulas. Death Note remains an input inside the single Measurement multiplier and is never multiplied into Bell Ring a second time.
 

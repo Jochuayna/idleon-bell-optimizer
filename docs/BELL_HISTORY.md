@@ -2,6 +2,8 @@
 
 Bell Progress History stores small Bell-only snapshots in the current browser using IndexedDB. It never uploads history to GitHub or another service.
 
+New snapshots may also include an optional sanitized `runContext` describing the production Run Optimizer result selected when the player presses **Save Current Snapshot**. It stores the reward index/identifier/name, raw reward level, production tier key/label, production Keep/Renew state, and available raw current/fresh expected finishes. Older snapshots remain valid without this field. History does not recalculate run quality, migrate old snapshots, or store full forecast distributions and policy diagnostics.
+
 ## What is stored
 
 - Exact Ring, Ping, and Clean rates as decimal strings
