@@ -35,7 +35,9 @@ Select any unlocked Bell reward and compare the current run with a complete fres
 - Double Torch Chance
 - Coins From Fountain
 
-The Run Optimizer reports whether to keep the current run, whether Renewing is favored, or whether the outcomes are too close to separate clearly. It considers expected finish and account-relative elite upside, and shows the current level, expected finish, likely range, remaining Bell opportunities, and concise rationale. No player-entered target is required.
+The Run Optimizer reports whether to keep the current run, whether Renewing is favored, or whether the outcomes are too close to separate clearly. It shows the current level, expected finish, likely range, remaining Bell opportunities, and concise rationale. No player-entered target is required.
+
+The verdict uses a **keep bar** that rises with the number of re-rolls planned: one re-roll is worth an average fresh run, and each extra one raises the bar. **Re-rolls to plan for** defaults to the Renewals banked, up to 50, and each re-roll is judged about 2 hours into a fresh run.
 
 An optional **Future Ring Rate** scenario lets players test a projected rate from the currently imported Ring state forward. The same projected rate is applied to continuing and to a fresh replacement, without changing the imported account. This scenario lasts only for the current page session, clears on a new save import, and is never stored in Progress History.
 
@@ -151,4 +153,8 @@ Open a GitHub Issue and include:
 
 The project is currently distributed without a separate license file.
 
-Legends of Idleon names and game-related trademarks belong to their respective owners. The interface uses an original Bell emblem rather than distributing the game's Bell sprite.
+Legends of Idleon names and game-related trademarks belong to their respective owners.
+
+## Game icons
+
+The Bell in the header and the small item icons in `assets/icons/` are IdleOn game art by LavaFlame2, taken from the image set bundled with the IdleOn AutoReview Bot project. They are used only to depict and label the game items they show.
