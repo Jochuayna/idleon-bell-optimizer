@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Optimize Bell runs and Bell Ring, Ping, and Clean rates from your IdleOn save, locally in your browser.">
-  <meta name="bell-optimizer-release" content="2026.08.09-rc1">
+  <meta name="bell-optimizer-release" content="2026.11.25">
   <title>Bell Optimizer</title>
-  <link rel="stylesheet" href="styles.css?v=2026.08.09-rc1">
+  <link rel="stylesheet" href="styles.css?v=2026.11.25">
 </head>
 <body>
   <div class="page-shell">
     <header class="hero">
-      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false"><path fill="#6e351f" d="M20 49h24l-3 7H23z"/><path fill="#b85e2f" d="M16 43h32l-5 8H21z"/><path fill="#f1a42b" d="M19 42c3-5 5-12 5-20 0-5 3-9 8-9s8 4 8 9c0 8 2 15 5 20z"/><path fill="#ffd066" d="M27 17c1-3 3-5 6-5l-1 28H22c3-7 5-14 5-23z"/><path fill="#885a8f" d="M27 11c0-3 2-6 5-6s5 3 5 6z"/><path fill="#f1a42b" d="M27 55h10c-1 4-3 6-5 6s-4-2-5-6z"/></svg></div>
+      <button type="button" class="brand-mark" aria-label="Ring the bell"><img src="assets/icons/bell.png?v=2026.11.25" alt="" width="44" height="48"></button>
       <div>
         <h1>Bell Optimizer</h1>
         <p class="intro">Optimize Bell rates, evaluate runs, and track account progress.</p>
@@ -45,7 +45,7 @@
           <p id="import-status" class="import-status" role="status" aria-live="polite">Choose a file or paste your save, then import it.</p>
         </div>
         <p class="fresh-run-tip"><strong>Tip:</strong> Reset, use one 2-hour Lantern, then import your save for a useful early-run check.</p>
-        <div id="compact-account-bar" class="compact-account-bar" hidden><div class="compact-account-status"><span class="verified-dot" aria-hidden="true"></span><span class="compact-account-copy"><strong>Account imported</strong><small>Updated this session · Local only</small></span></div><button id="change-save-button" type="button" class="secondary-button">Change save</button></div>
+        <div id="compact-account-bar" class="compact-account-bar" hidden><div class="compact-account-status"><span class="verified-dot" aria-hidden="true"></span><span class="compact-account-copy"><strong>Account imported</strong><small>Updated this session</small></span></div><button id="change-save-button" type="button" class="secondary-button">Change save</button></div>
         <div id="import-summary" class="import-summary" hidden><div><span>Current Bell ring</span><strong id="summary-current-ring">&mdash;</strong></div><div><span>Bell rewards unlocked</span><strong id="summary-rewards-unlocked">&mdash;</strong></div><div><span>Current goal</span><strong id="summary-current-goal">Fountain</strong></div></div>
         <section id="fresh-run-planner" class="fresh-run-planner" aria-labelledby="fresh-run-planner-title" hidden>
           <div class="section-heading"><div><p class="section-number">Fresh-run planner</p><h2 id="fresh-run-planner-title">Fresh-run odds</h2></div><p>Resource requirements for independent renewed runs—not advice to reset your current run.</p></div>
@@ -61,7 +61,7 @@
       </section>
 
       <div id="rate-optimizer-workspace" class="optimizer-workspace" data-workspace-panel="rate" hidden>
-      <header class="workspace-heading"><div><p class="section-number">Rate Optimizer</p><h2>Bell Rate Optimizer</h2><p>Improve Bell Ring, Ping, and Clean rates with verified account upgrades.</p></div><button id="rate-open-run-optimizer" type="button" class="text-action">Open Run Optimizer →</button></header>
+      <header class="workspace-heading"><div><p class="section-number">Rate Optimizer</p><h2>Bell Rate Optimizer</h2><p>Improve Bell Ring, Ping, and Clean rates with verified account upgrades.</p></div><button id="rate-open-run-optimizer" type="button" class="text-action">Open Run Optimizer</button></header>
       <section id="bell-dashboard" class="panel bell-dashboard" aria-labelledby="bell-dashboard-title">
         <div class="section-heading dashboard-heading"><div><p class="section-number">Dashboard</p><h2 id="bell-dashboard-title">Your Bell Ring Rate</h2></div></div>
         <div id="dashboard-no-save" class="dashboard-empty-state"><strong>Import your Idleon save to optimize your Ring Rate.</strong><span>Your save stays in this browser.</span></div>
@@ -151,23 +151,28 @@
       </div>
 
       <div id="run-optimizer-workspace" class="optimizer-workspace" data-workspace-panel="run">
-      <header class="workspace-heading"><div><p class="section-number">Run Optimizer</p><h2>Bell Run Optimizer</h2><p>Is this run worth keeping, or should you Renew?</p></div><div class="workspace-cross-link"><span>Current Ring Rate</span><strong id="run-workspace-ring-rate">Import a save</strong><button id="run-open-rate-optimizer" type="button" class="text-action">Optimize my rate →</button></div></header>
+      <header class="workspace-heading"><div><p class="section-number">Run Optimizer</p><h2>Bell Run Optimizer</h2><p>Is this run worth keeping, or should you Renew?</p></div><div class="workspace-cross-link"><span>Current Ring Rate</span><strong id="run-workspace-ring-rate">Import a save</strong><button id="run-open-rate-optimizer" type="button" class="text-action">Optimize my rate</button></div></header>
       <section id="run-analysis" class="panel input-panel flow-step" aria-labelledby="goal-title">
         <div class="section-heading compact-heading"><div><p class="section-number">Choose reward</p><h2 id="goal-title">Bell reward</h2></div></div>
         <div class="goal-presets" role="group" aria-label="Bell goal">
-          <button type="button" class="goal-preset" data-goal="Bucket Fill Rate" data-reward-index="0" aria-pressed="false"><strong>Bucket Fill Rate</strong><span class="run-reward-level">—</span></button>
-          <button type="button" class="goal-preset" data-goal="All Villager EXP" data-reward-index="1" aria-pressed="false"><strong>All Villager EXP</strong><span class="run-reward-level">—</span></button>
-          <button type="button" class="goal-preset" data-goal="Harp Note Gains" data-reward-index="2" aria-pressed="false"><strong>Harp Note Gains</strong><span class="run-reward-level">—</span></button>
-          <button type="button" class="goal-preset" data-goal="Daily Lamp Wishes" data-reward-index="3" aria-pressed="false"><strong>Daily Lamp Wishes</strong><span class="run-reward-level">—</span></button>
-          <button type="button" class="goal-preset" data-goal="Extra Rupie Chance" data-reward-index="4" aria-pressed="false"><strong>Extra Rupie Chance</strong><span class="run-reward-level">—</span></button>
-          <button type="button" class="goal-preset" data-goal="Double Torch Chance" data-reward-index="5" aria-pressed="false"><strong>Double Torch Chance</strong><span class="run-reward-level">—</span></button>
-          <button type="button" class="goal-preset selected" data-goal="Coins From Fountain" data-reward-index="6" aria-pressed="true"><strong>Coins From Fountain</strong><span class="run-reward-level">—</span></button>
+          <button type="button" class="goal-preset" data-goal="Bucket Fill Rate" data-reward-index="0" aria-pressed="false"><strong><img class="game-icon" src="assets/icons/well-bucket.png?v=2026.11.25" alt="" width="20" height="20">Bucket Fill Rate</strong><span class="run-reward-level">—</span></button>
+          <button type="button" class="goal-preset" data-goal="All Villager EXP" data-reward-index="1" aria-pressed="false"><strong><img class="game-icon" src="assets/icons/villager.png?v=2026.11.25" alt="" width="20" height="20">All Villager EXP</strong><span class="run-reward-level">—</span></button>
+          <button type="button" class="goal-preset" data-goal="Harp Note Gains" data-reward-index="2" aria-pressed="false"><strong><img class="game-icon" src="assets/icons/harp-note.png?v=2026.11.25" alt="" width="20" height="20">Harp Note Gains</strong><span class="run-reward-level">—</span></button>
+          <button type="button" class="goal-preset" data-goal="Daily Lamp Wishes" data-reward-index="3" aria-pressed="false"><strong><img class="game-icon" src="assets/icons/lamp.png?v=2026.11.25" alt="" width="20" height="20">Daily Lamp Wishes</strong><span class="run-reward-level">—</span></button>
+          <button type="button" class="goal-preset" data-goal="Extra Rupie Chance" data-reward-index="4" aria-pressed="false"><strong><img class="game-icon" src="assets/icons/rupie.png?v=2026.11.25" alt="" width="20" height="20">Extra Rupie Chance</strong><span class="run-reward-level">—</span></button>
+          <button type="button" class="goal-preset" data-goal="Double Torch Chance" data-reward-index="5" aria-pressed="false"><strong><img class="game-icon" src="assets/icons/temple.png?v=2026.11.25" alt="" width="20" height="20">Double Torch Chance</strong><span class="run-reward-level">—</span></button>
+          <button type="button" class="goal-preset selected" data-goal="Coins From Fountain" data-reward-index="6" aria-pressed="true"><strong><img class="game-icon" src="assets/icons/gold-coin.png?v=2026.11.25" alt="" width="20" height="20">Coins From Fountain</strong><span class="run-reward-level">—</span></button>
         </div>
         <div id="run-rate-scenario" class="run-rate-scenario">
           <label for="future-ring-rate"><strong>Future Ring Rate</strong><span>See whether this run is worth continuing if your Ring Rate increases from now on.</span></label>
           <div class="run-rate-scenario-controls"><input id="future-ring-rate" type="text" inputmode="decimal" autocomplete="off" placeholder="Example: 1.2QQ"><button id="apply-future-ring-rate" type="button">Apply</button><button id="clear-future-ring-rate" type="button" class="secondary-button" hidden>Use imported rate</button></div>
           <p id="future-ring-rate-status" class="field-help" role="status" aria-live="polite">Optional. Uses the same projected rate for continuing and for a fresh run.</p>
           <p id="run-scenario-active" class="run-scenario-active" hidden><strong>Run scenario active</strong><span>Future Ring Rate: <b id="run-scenario-active-rate">—</b>/hr</span></p>
+        </div>
+        <div id="run-reroll-plan" class="run-rate-scenario run-reroll-plan">
+          <label for="planned-rerolls"><strong>Re-rolls to plan for</strong><span>More re-rolls raise the keep bar.</span></label>
+          <div class="run-rate-scenario-controls"><input id="planned-rerolls" type="number" inputmode="numeric" min="1" max="5000" step="1" autocomplete="off" placeholder="Default"><button id="apply-planned-rerolls" type="button">Apply</button><button id="clear-planned-rerolls" type="button" class="secondary-button" hidden>Use default</button></div>
+          <p id="planned-rerolls-status" class="field-help" role="status" aria-live="polite">Defaults to banked Renewals, up to 50.</p>
         </div>
       </section>
 
@@ -689,51 +694,53 @@
     </main>
     <footer>Unofficial community tool. Not affiliated with or endorsed by the creators of Legends of Idleon.</footer>
   </div>
-  <script src="js/idleon-number-format.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-mechanics.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-rate-upgrade-candidates.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-rate-optimizer.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-rate-scenario.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-rate-target-solver.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-dashboard-view-model.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-target-view-model.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-run-view-model.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-run-rate-scenario.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-run-rate-scenario-tests.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-renewal-decision.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-rate-section.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-account-validation.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-history-snapshot.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-history-comparison.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-history-storage.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-history-import.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-history-section.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-history-presentation.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-benchmark-snapshot.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-benchmark-comparison.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-benchmark-section.js?v=2026.08.09-rc1"></script>
-  <script src="js/developer-mode.js?v=2026.08.09-rc1"></script>
-  <script src="js/save-import-workflow.js?v=2026.08.09-rc1"></script>
-  <script src="js/active-import-transaction.js?v=2026.08.09-rc1"></script>
-  <script src="js/save-parsing.js?v=2026.08.09-rc1"></script>
-  <script src="js/parser-tests.js?v=2026.08.09-rc1"></script>
-  <script src="js/target-evaluator.js?v=2026.08.09-rc1"></script>
-  <script src="js/objective-selection.js?v=2026.08.09-rc1"></script>
-  <script src="js/reset-lantern-planner.js?v=2026.08.09-rc1"></script>
-  <script src="js/current-reset-decision.js?v=2026.08.09-rc1"></script>
-  <script src="js/automatic-run-evaluation.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-run-forecast.js?v=2026.08.09-rc1"></script>
-  <script src="js/bell-run-replacement.js?v=2026.08.09-rc1"></script>
-  <script src="js/automatic-run-presentation.js?v=2026.08.09-rc1"></script>
-  <script src="js/automatic-run-prototype.js?v=2026.08.09-rc1"></script>
-  <script src="js/gain-pace.js?v=2026.08.09-rc1"></script>
-  <script src="js/remaining-opportunities.js?v=2026.08.09-rc1"></script>
-  <script src="js/current-run-distribution.js?v=2026.08.09-rc1"></script>
-  <script src="js/compare-saves.js?v=2026.08.09-rc1"></script>
-  <script src="js/simulations.js?v=2026.08.09-rc1"></script>
-  <script src="js/optimization-goals.js?v=2026.08.09-rc1"></script>
-  <script src="js/run-evaluation.js?v=2026.08.09-rc1"></script>
-  <script src="js/json-inspector.js?v=2026.08.09-rc1"></script>
-  <script src="js/user-interface.js?v=2026.08.09-rc1"></script>
+  <script src="js/idleon-number-format.js?v=2026.11.25"></script>
+  <script src="js/bell-mechanics.js?v=2026.11.25"></script>
+  <script src="js/bell-rate-upgrade-candidates.js?v=2026.11.25"></script>
+  <script src="js/bell-rate-optimizer.js?v=2026.11.25"></script>
+  <script src="js/bell-rate-scenario.js?v=2026.11.25"></script>
+  <script src="js/bell-rate-target-solver.js?v=2026.11.25"></script>
+  <script src="js/bell-dashboard-view-model.js?v=2026.11.25"></script>
+  <script src="js/bell-target-view-model.js?v=2026.11.25"></script>
+  <script src="js/bell-run-view-model.js?v=2026.11.25"></script>
+  <script src="js/bell-run-rate-scenario.js?v=2026.11.25"></script>
+  <script src="js/bell-run-rate-scenario-tests.js?v=2026.11.25"></script>
+  <script src="js/bell-renewal-decision.js?v=2026.11.25"></script>
+  <script src="js/bell-rate-section.js?v=2026.11.25"></script>
+  <script src="js/bell-account-validation.js?v=2026.11.25"></script>
+  <script src="js/bell-history-snapshot.js?v=2026.11.25"></script>
+  <script src="js/bell-history-comparison.js?v=2026.11.25"></script>
+  <script src="js/bell-history-storage.js?v=2026.11.25"></script>
+  <script src="js/bell-history-import.js?v=2026.11.25"></script>
+  <script src="js/bell-history-section.js?v=2026.11.25"></script>
+  <script src="js/bell-history-presentation.js?v=2026.11.25"></script>
+  <script src="js/bell-benchmark-snapshot.js?v=2026.11.25"></script>
+  <script src="js/bell-benchmark-comparison.js?v=2026.11.25"></script>
+  <script src="js/bell-benchmark-section.js?v=2026.11.25"></script>
+  <script src="js/developer-mode.js?v=2026.11.25"></script>
+  <script src="js/save-import-workflow.js?v=2026.11.25"></script>
+  <script src="js/active-import-transaction.js?v=2026.11.25"></script>
+  <script src="js/save-parsing.js?v=2026.11.25"></script>
+  <script src="js/parser-tests.js?v=2026.11.25"></script>
+  <script src="js/target-evaluator.js?v=2026.11.25"></script>
+  <script src="js/objective-selection.js?v=2026.11.25"></script>
+  <script src="js/reset-lantern-planner.js?v=2026.11.25"></script>
+  <script src="js/current-reset-decision.js?v=2026.11.25"></script>
+  <script src="js/automatic-run-evaluation.js?v=2026.11.25"></script>
+  <script src="js/bell-run-forecast.js?v=2026.11.25"></script>
+  <script src="js/bell-run-replacement.js?v=2026.11.25"></script>
+  <script src="js/bell-renewal-budget.js?v=2026.11.25"></script>
+  <script src="js/automatic-run-presentation.js?v=2026.11.25"></script>
+  <script src="js/automatic-run-prototype.js?v=2026.11.25"></script>
+  <script src="js/gain-pace.js?v=2026.11.25"></script>
+  <script src="js/remaining-opportunities.js?v=2026.11.25"></script>
+  <script src="js/current-run-distribution.js?v=2026.11.25"></script>
+  <script src="js/compare-saves.js?v=2026.11.25"></script>
+  <script src="js/simulations.js?v=2026.11.25"></script>
+  <script src="js/optimization-goals.js?v=2026.11.25"></script>
+  <script src="js/run-evaluation.js?v=2026.11.25"></script>
+  <script src="js/json-inspector.js?v=2026.11.25"></script>
+  <script src="js/user-interface.js?v=2026.11.25"></script>
+  <script src="js/game-icons.js?v=2026.11.25"></script>
 </body>
 </html>
