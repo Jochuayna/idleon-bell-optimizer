@@ -8,6 +8,14 @@ BellOptimizer.saveImportWorkflow = (function () {
     return String(error.message || error).slice(0, 300);
   }
   var PUBLIC_SAVE_GUIDANCE = "This JSON does not appear to contain a complete IdleOn save. Use IdleOn Toolbox's Copy for Support or a raw-data export.";
+  // A failure inside the parsed Holes/Spelunk arrays means the save itself was
+  // recognized and a single value could not be read. Name that value instead of
+  // telling the player to re-export a save that is already complete.
+  function failureMessage(result) {
+    var error=result&&result.error,path=error&&typeof error.path==="string"?error.path:"";
+    if(!error||path.indexOf("::parsed[")===-1)return PUBLIC_SAVE_GUIDANCE;
+    return "This is an IdleOn save, but one Bell value could not be read: "+safeMessage(error)+" ("+path.replace(/^\$\.data\./,"").replace("::parsed","")+")";
+  }
   function run(text, handlers) {
     var stage="Parsing JSON";
     try {
@@ -15,7 +23,7 @@ BellOptimizer.saveImportWorkflow = (function () {
       stage="Parsing IdleOn save";
       var result=handlers.parseSave(outer);
       outer=null;
-      if(!result||!result.ok){throw new Error(PUBLIC_SAVE_GUIDANCE);}
+      if(!result||!result.ok){throw new Error(failureMessage(result));}
       stage="Rendering imported data";
       handlers.render(result);
       return {ok:true,result:result};
@@ -37,5 +45,5 @@ BellOptimizer.saveImportWorkflow = (function () {
     if(!button||typeof button.addEventListener!=="function")return false;
     button.addEventListener("click",listener);return true;
   }
-  return {run:run,runDeferred:runDeferred,attach:attach,safeMessage:safeMessage,PUBLIC_SAVE_GUIDANCE:PUBLIC_SAVE_GUIDANCE};
+  return {run:run,runDeferred:runDeferred,attach:attach,safeMessage:safeMessage,failureMessage:failureMessage,PUBLIC_SAVE_GUIDANCE:PUBLIC_SAVE_GUIDANCE};
 }());

@@ -11,6 +11,16 @@ BellOptimizer.saveParsing = (function () {
     return (5 + 3 * rawRingIndex) * Math.pow(1.05, rawRingIndex);
   }
 
+  // IdleOn writes very large numbers into the save as numeric strings, for
+  // example "3.80946714248471e+16". A strictly numeric string is read as the
+  // number it encodes; any other string is left alone and still rejected.
+  var NUMERIC_STRING = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+  function coerceNumeric(value) {
+    if (typeof value !== "string") return value;
+    var trimmed = value.trim();
+    return NUMERIC_STRING.test(trimmed) ? Number(trimmed) : value;
+  }
+
   function isPlainObject(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return false;
     var prototype = Object.getPrototypeOf(value);
@@ -93,7 +103,7 @@ BellOptimizer.saveParsing = (function () {
       if (!container || typeof container !== "object" || !Object.prototype.hasOwnProperty.call(container, outerIndex)) return failure("MISSING_" + code + "_ARRAY", label + " array [" + outerIndex + "] is missing.", arrayPath);
       if (!Array.isArray(container[outerIndex])) return failure(code + "_ARRAY_NOT_ARRAY", label + " parent is not an array.", arrayPath);
       if (!Object.prototype.hasOwnProperty.call(container[outerIndex], innerIndex)) return failure("MISSING_" + code, label + " is missing.", path);
-      var value = container[outerIndex][innerIndex];
+      var value = coerceNumeric(container[outerIndex][innerIndex]);
       if (typeof value !== "number") return failure("NONNUMERIC_" + code, label + " is not numeric.", path);
       if (!Number.isFinite(value)) return failure("NONFINITE_" + code, label + " is not finite.", path);
       if (value < 0) return failure("NEGATIVE_" + code, label + " cannot be negative.", path);
@@ -109,7 +119,7 @@ BellOptimizer.saveParsing = (function () {
     if (!Object.prototype.hasOwnProperty.call(holes[1], 0)) {
       return failure("MISSING_VILLAGER_INDEX_0", "The parsed data.Holes[1] array does not contain index [0].", "$.data.Holes::parsed[1][0]");
     }
-    var villagerLevel0 = holes[1][0];
+    var villagerLevel0 = coerceNumeric(holes[1][0]);
     if (typeof villagerLevel0 !== "number") {
       return failure("NONNUMERIC_VILLAGER_LEVEL_0", "The first villager level is not numeric.", "$.data.Holes::parsed[1][0]");
     }
@@ -131,7 +141,7 @@ BellOptimizer.saveParsing = (function () {
     function readUpgradeOwnership(upgradeIndex) {
       var path = "$.data.Holes::parsed[13][" + upgradeIndex + "]";
       if (!Object.prototype.hasOwnProperty.call(holes[13], upgradeIndex)) return failure("MISSING_BELL_UPGRADE_" + upgradeIndex, "Bell upgrade index [13][" + upgradeIndex + "] is missing.", path);
-      var rawValue = holes[13][upgradeIndex];
+      var rawValue = coerceNumeric(holes[13][upgradeIndex]);
       if (typeof rawValue !== "number") return failure("NONNUMERIC_BELL_UPGRADE_" + upgradeIndex, "Bell upgrade [" + upgradeIndex + "] ownership value is not numeric.", path);
       if (!Number.isFinite(rawValue)) return failure("NONFINITE_BELL_UPGRADE_" + upgradeIndex, "Bell upgrade [" + upgradeIndex + "] ownership value is not finite.", path);
       if (rawValue < 0) return failure("NEGATIVE_BELL_UPGRADE_" + upgradeIndex, "Bell upgrade [" + upgradeIndex + "] ownership value cannot be negative.", path);
@@ -158,7 +168,7 @@ BellOptimizer.saveParsing = (function () {
     for (var methodIndex = 0; methodIndex < 6; methodIndex += 1) {
       var methodPath = "$.data.Holes::parsed[16][" + methodIndex + "]";
       if (!Object.prototype.hasOwnProperty.call(holes[16], methodIndex)) return failure("MISSING_BELL_METHOD_LEVEL_" + methodIndex, "Bell Improvement Method level [" + methodIndex + "] is missing.", methodPath);
-      var methodLevel = holes[16][methodIndex];
+      var methodLevel = coerceNumeric(holes[16][methodIndex]);
       if (typeof methodLevel !== "number") return failure("NONNUMERIC_BELL_METHOD_LEVEL_" + methodIndex, "Bell Improvement Method level [" + methodIndex + "] is not numeric.", methodPath);
       if (!Number.isFinite(methodLevel)) return failure("NONFINITE_BELL_METHOD_LEVEL_" + methodIndex, "Bell Improvement Method level [" + methodIndex + "] is not finite.", methodPath);
       if (methodLevel < 0) return failure("NEGATIVE_BELL_METHOD_LEVEL_" + methodIndex, "Bell Improvement Method level [" + methodIndex + "] cannot be negative.", methodPath);
@@ -176,7 +186,7 @@ BellOptimizer.saveParsing = (function () {
       return failure("TOO_FEW_BELL_VALUES", "The Bell reward array contains fewer than seven values.", "$.data.Holes::parsed[17]");
     }
 
-    var values = holes[17].slice(0, 7);
+    var values = holes[17].slice(0, 7).map(coerceNumeric);
     for (var i = 0; i < values.length; i += 1) {
       if (typeof values[i] !== "number") {
         return failure("NONNUMERIC_BELL_VALUE", "Bell reward value [" + i + "] is not numeric.", "$.data.Holes::parsed[17][" + i + "]");
@@ -195,7 +205,7 @@ BellOptimizer.saveParsing = (function () {
     if (!Object.prototype.hasOwnProperty.call(holes[18], 0)) {
       return failure("MISSING_RINGING_EXP_INDEX_0", "The parsed data.Holes[18] array does not contain Ringing progress index [0].", "$.data.Holes::parsed[18][0]");
     }
-    var currentRingingExp = holes[18][0];
+    var currentRingingExp = coerceNumeric(holes[18][0]);
     if (typeof currentRingingExp !== "number") {
       return failure("NONNUMERIC_CURRENT_RINGING_EXP", "Current Ringing EXP is not numeric.", "$.data.Holes::parsed[18][0]");
     }
@@ -208,7 +218,7 @@ BellOptimizer.saveParsing = (function () {
     if (!Object.prototype.hasOwnProperty.call(holes[18], 1)) {
       return failure("MISSING_RING_INDEX_1", "The parsed data.Holes[18] array does not contain index [1].", "$.data.Holes::parsed[18][1]");
     }
-    var bellRingIndex = holes[18][1];
+    var bellRingIndex = coerceNumeric(holes[18][1]);
     if (typeof bellRingIndex !== "number") {
       return failure("NONNUMERIC_BELL_RING_INDEX", "The Bell ring index is not numeric.", "$.data.Holes::parsed[18][1]");
     }
@@ -225,7 +235,7 @@ BellOptimizer.saveParsing = (function () {
     function readRenewalValue(index, fieldName, codeName) {
       var path = "$.data.Holes::parsed[18][" + index + "]";
       if (!Object.prototype.hasOwnProperty.call(holes[18], index)) return failure("MISSING_" + codeName, "The parsed data.Holes[18] array does not contain renewal index [" + index + "].", path);
-      var value = holes[18][index];
+      var value = coerceNumeric(holes[18][index]);
       if (typeof value !== "number") return failure("NONNUMERIC_" + codeName, fieldName + " is not numeric.", path);
       if (!Number.isFinite(value)) return failure("NONFINITE_" + codeName, fieldName + " is not finite.", path);
       if (value < 0) return failure("NEGATIVE_" + codeName, fieldName + " cannot be negative.", path);
@@ -271,7 +281,7 @@ BellOptimizer.saveParsing = (function () {
     if (!Object.prototype.hasOwnProperty.call(holes[26], 4)) {
       return failure("MISSING_BOLAIA_INDEX_4", "The parsed data.Holes[26] array does not contain index [4].", "$.data.Holes::parsed[26][4]");
     }
-    var bolaiaBellStudyLevel = holes[26][4];
+    var bolaiaBellStudyLevel = coerceNumeric(holes[26][4]);
     if (typeof bolaiaBellStudyLevel !== "number") {
       return failure("NONNUMERIC_BOLAIA_BELL_STUDY_LEVEL", "The Bolaia Bell study level is not numeric.", "$.data.Holes::parsed[26][4]");
     }
@@ -299,6 +309,7 @@ BellOptimizer.saveParsing = (function () {
         if (current == null || !Object.prototype.hasOwnProperty.call(current, indexes[depth])) return { ok: false, path: path, reason: "missing" };
         current = current[indexes[depth]];
       }
+      current = coerceNumeric(current);
       if (typeof current !== "number" || !Number.isFinite(current) || current < 0) return { ok: false, path: path, reason: "invalid" };
       return { ok: true, value: current, path: path };
     }
@@ -501,5 +512,5 @@ BellOptimizer.saveParsing = (function () {
     };
   }
 
-  return { status: "confirmed-bell-fields-import", RENEWAL_COST: RENEWAL_COST, calculateNextRingRequiredExp: calculateNextRingRequiredExp, normalizeSaveEnvelope: normalizeSaveEnvelope, parseNestedSaveField: parseNestedSaveField, parseHolesField: parseHolesField, parseSpelunkField: parseSpelunkField, parseBellRewardLevels: parseBellRewardLevels };
+  return { status: "confirmed-bell-fields-import", RENEWAL_COST: RENEWAL_COST, coerceNumeric: coerceNumeric, calculateNextRingRequiredExp: calculateNextRingRequiredExp, normalizeSaveEnvelope: normalizeSaveEnvelope, parseNestedSaveField: parseNestedSaveField, parseHolesField: parseHolesField, parseSpelunkField: parseSpelunkField, parseBellRewardLevels: parseBellRewardLevels };
 }());

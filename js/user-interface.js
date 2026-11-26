@@ -25,6 +25,8 @@ BellOptimizer.userInterface = (function () {
   var selectedGoal = { name: "Fountain", rewardIndex: 6, rewardName: "Coins From Fountain" };
   var latestRunHistoryContext = null;
   var runRateScenario = BellOptimizer.bellRunRateScenario.createSession(BellOptimizer.idleonNumberFormat.parse);
+  // Re-rolls the player plans to make; null uses the reset-aware model's default.
+  var plannedRerolls = null;
   var activeImportFailureStage = null;
   var canonicalNoAccountState = null;
   var renewalDecisionController = BellOptimizer.bellRenewalDecision.createController({ onState: renderRenewalDecisionState });
@@ -637,6 +639,29 @@ BellOptimizer.userInterface = (function () {
     renderRunForecast();syncRunRateScenarioUI();
   }
 
+  function syncPlannedRerollsUI(decision, message, isError) {
+    var input=document.querySelector("#planned-rerolls"),status=document.querySelector("#planned-rerolls-status"),clear=document.querySelector("#clear-planned-rerolls");
+    clear.hidden=plannedRerolls===null;
+    status.classList.toggle("error",Boolean(isError));
+    if(message){status.textContent=message;return;}
+    if(!decision||!decision.resetAware){status.textContent="Defaults to banked Renewals, up to 50.";return;}
+    input.placeholder="Default: "+decision.defaultRerolls.toLocaleString();
+    status.textContent=(plannedRerolls===null?"Default: ":"Your plan: ")+decision.rerollsPlanned.toLocaleString()+" ("+decision.renewalsBankedNow.toLocaleString()+" banked)";
+  }
+
+  function applyPlannedRerolls() {
+    var input=document.querySelector("#planned-rerolls"),raw=String(input.value).trim(),value=Number(raw);
+    if(!importedEvaluatorState){syncPlannedRerollsUI(null,"Import a save before planning re-rolls.",true);return;}
+    if(!raw){clearPlannedRerolls();return;}
+    if(!Number.isInteger(value)||value<1||value>BellOptimizer.bellRenewalBudget.MAX_REROLLS){syncPlannedRerollsUI(null,"Enter a whole number from 1 to "+BellOptimizer.bellRenewalBudget.MAX_REROLLS.toLocaleString()+".",true);return;}
+    plannedRerolls=value;renderRunForecast();
+  }
+
+  function clearPlannedRerolls() {
+    plannedRerolls=null;document.querySelector("#planned-rerolls").value="";
+    if(importedEvaluatorState)renderRunForecast();else syncPlannedRerollsUI(null);
+  }
+
   function clearRunRateScenario() {
     runRateScenario.clear();renewalDecisionController.invalidate();var advancedResult=document.querySelector("#advanced-renewal-result");if(advancedResult)advancedResult.hidden=true;
     if(importedEvaluatorState)renderRunForecast();syncRunRateScenarioUI("Using the imported Ring Rate.",false);
@@ -652,11 +677,11 @@ BellOptimizer.userInterface = (function () {
   function renderRunForecast() {
     var empty=document.querySelector("#run-forecast-empty"),resultHost=document.querySelector("#run-forecast-result"),hero=document.querySelector("#run-forecast-hero"),snapshot=automaticPrototypeSnapshot();
     if(!snapshot||!Number.isInteger(selectedGoal.rewardIndex)){latestRunHistoryContext=null;BellOptimizer.bellHistorySection.setRunContext(null);empty.hidden=false;resultHost.hidden=true;empty.querySelector("strong").textContent="Import a save with a complete Bell Ring rate to forecast this run.";return null;}
-    var state=importedEvaluatorState,options={selectedRewardIndex:selectedGoal.rewardIndex,rewardLevels:snapshot.rewardLevels,currentRawRingIndex:snapshot.currentRawRingIndex,currentRingingExp:snapshot.currentRingingExp,ringingExpPerHour:snapshot.ringingExpPerHour,currentRenewalCurrency:snapshot.currentRenewalCurrency,cavernsOwned:state.cavernsOwned,majorBellBonus:state.majorBonus,bellUpgrade42Owned:state.upgrade42Owned,bellUpgrade60Owned:state.upgrade60Owned,bellUpgrade86Owned:state.doubleEnabled},scenarioEvaluation=BellOptimizer.bellRunRateScenario.evaluate({baseOptions:options,futureRate:runRateScenario.getRate(),reward:BellOptimizer.BELL_REWARDS[selectedGoal.rewardIndex],formatter:BellOptimizer.idleonNumberFormat.format}),forecast=scenarioEvaluation.display.forecast,replacement=scenarioEvaluation.display.replacement,model=scenarioEvaluation.display.model;
+    var state=importedEvaluatorState,options={selectedRewardIndex:selectedGoal.rewardIndex,rewardLevels:snapshot.rewardLevels,currentRawRingIndex:snapshot.currentRawRingIndex,currentRingingExp:snapshot.currentRingingExp,ringingExpPerHour:snapshot.ringingExpPerHour,currentRenewalCurrency:snapshot.currentRenewalCurrency,cavernsOwned:state.cavernsOwned,majorBellBonus:state.majorBonus,bellUpgrade42Owned:state.upgrade42Owned,bellUpgrade60Owned:state.upgrade60Owned,bellUpgrade86Owned:state.doubleEnabled,plannedRerolls:plannedRerolls},scenarioEvaluation=BellOptimizer.bellRunRateScenario.evaluate({baseOptions:options,futureRate:runRateScenario.getRate(),reward:BellOptimizer.BELL_REWARDS[selectedGoal.rewardIndex],formatter:BellOptimizer.idleonNumberFormat.format}),forecast=scenarioEvaluation.display.forecast,replacement=scenarioEvaluation.display.replacement,model=scenarioEvaluation.display.model;
     if(!model.ok){latestRunHistoryContext=null;BellOptimizer.bellHistorySection.setRunContext(null);empty.hidden=false;resultHost.hidden=true;empty.querySelector("strong").textContent=model.message;return model;}
     latestRunHistoryContext=BellOptimizer.bellHistorySnapshot.runContextFromViewModel(scenarioEvaluation.actual.model);BellOptimizer.bellHistorySection.setRunContext(latestRunHistoryContext);syncRunRateScenarioUI();
     function text(id,value){document.querySelector("#"+id).textContent=value;}
-    renderReplacementDecision(model);
+    renderReplacementDecision(model);syncPlannedRerollsUI(model.replacement);
     empty.hidden=true;resultHost.hidden=false;hero.dataset.tier=model.tierKey.toLowerCase().replace(/_/g,"-");text("run-forecast-reward",model.rewardName);text("run-forecast-tier",model.tierLabel);text("run-forecast-current",model.currentDisplay);text("run-forecast-finish",model.finishDisplay);text("run-forecast-range",model.rangeDisplay);text("run-forecast-direction",model.direction);text("run-forecast-interpretation",model.interpretation);text("run-forecast-concentration",model.concentrationDisplay);text("run-forecast-expected-share",model.expectedShareDisplay);text("run-forecast-next-major",model.nextMajorDisplay);text("run-forecast-rings-to-major",model.ringsToMajorDisplay);text("run-forecast-taper-ring",model.taperRingDisplay);text("run-forecast-taper-time",model.taperTimeDisplay);text("run-forecast-opportunities",model.opportunityDisplay);text("run-forecast-majors",model.majorDisplay);text("run-forecast-mode",model.playerCalculationMode);text("run-forecast-superiority",model.superiorityDisplay);text("run-forecast-additional",model.additionalDisplay);text("run-forecast-wide-range",model.wideRangeDisplay);text("run-forecast-assumption",model.assumption);
     if(replacement&&replacement.ok){var format=BellOptimizer.idleonNumberFormat.format,pct=function(value){return (value*100).toFixed(2).replace(/\.00$/,"").replace(/(\.\d)0$/,"$1")+"%";};text("expert-run-selected-reward",replacement.selectedRewardName);text("expert-run-decision",replacement.decision);text("expert-run-current-level",format(replacement.currentRun.startingRewardLevel));text("expert-run-current-taper","Ring "+(replacement.currentRun.taperRawRingIndex+1).toLocaleString());text("expert-run-fresh-taper","Ring "+(replacement.freshReplacement.taperRawRingIndex+1).toLocaleString());text("expert-run-current-expected",format(replacement.currentRun.expectedEndingLevel));text("expert-run-fresh-expected",format(replacement.freshReplacement.expectedEndingLevel));text("expert-run-current-likely",format(replacement.currentRun.likelyRange.p25)+"–"+format(replacement.currentRun.likelyRange.p75));text("expert-run-fresh-likely",format(replacement.freshReplacement.likelyRange.p25)+"–"+format(replacement.freshReplacement.likelyRange.p75));text("expert-run-current-wide",format(replacement.currentRun.broaderRange.p10)+"–"+format(replacement.currentRun.broaderRange.p90));text("expert-run-fresh-wide",format(replacement.freshReplacement.broaderRange.p10)+"–"+format(replacement.freshReplacement.broaderRange.p90));text("expert-run-current-win",pct(replacement.comparison.probabilityCurrentBeatsFresh));text("expert-run-ties",pct(replacement.comparison.probabilityTie));text("expert-run-affordable",replacement.renewal.affordableNow?"Yes":"No");text("expert-run-rolls",replacement.currentRun.remainingBellRolls.toLocaleString());text("expert-run-majors",replacement.currentRun.remainingMajorPayouts.toLocaleString());text("expert-run-mode",replacement.comparison.calculationMode+(replacement.comparison.approximate?" · approximate":""));}
     if(replacement&&replacement.ok){var replacementFormat=BellOptimizer.idleonNumberFormat.format,advantage=replacement.comparison.expectedAdvantageCurrentMinusFresh;document.querySelector("#expert-run-expected-advantage").textContent=(advantage>=0?"Current +":"Fresh +")+replacementFormat(Math.abs(advantage));document.querySelector("#expert-run-relative-advantage").textContent=pct(replacement.comparison.relativeExpectedAdvantage);document.querySelector("#expert-run-regret-keep").textContent=replacementFormat(replacement.comparison.expectedRegretIfKeep);document.querySelector("#expert-run-regret-renew").textContent=replacementFormat(replacement.comparison.expectedRegretIfRenew);document.querySelector("#expert-run-rationale").textContent=replacement.comparison.classificationRationale;}
@@ -738,7 +763,7 @@ BellOptimizer.userInterface = (function () {
 
   function applyImportedResult(result, options) {
     options = options || {};
-    runRateScenario.onNewImport();syncRunRateScenarioUI();
+    runRateScenario.onNewImport();syncRunRateScenarioUI();plannedRerolls=null;document.querySelector("#planned-rerolls").value="";
     normalBellRateUpgradeData=null;
     var upgradeViewReset=BellOptimizer.bellRateSection.defaultViewState();
     selectedBellStat=upgradeViewReset.selectedStat;
@@ -948,7 +973,7 @@ BellOptimizer.userInterface = (function () {
     var rate=data.ringingRateBreakdown.complete?data.ringingRateBreakdown.calculatedRate:null;
     if(Number.isFinite(rate)){
       var options={selectedRewardIndex:selectedIndex,rewardLevels:stagedEvaluator.rewardLevels,currentRawRingIndex:data.rawRingIndex,currentRingingExp:data.currentRingingExp,ringingExpPerHour:rate,currentRenewalCurrency:data.currentRenewalCurrency,cavernsOwned:data.cavernsOwned,majorBellBonus:data.majorBellBonus,bellUpgrade42Owned:data.bellUpgrade42Owned,bellUpgrade60Owned:data.bellUpgrade60Owned,bellUpgrade86Owned:data.wholeRingDoubleEnabled};
-      var forecast=BellOptimizer.bellRunForecast.evaluateBellRunForecast(options),replacement=BellOptimizer.bellRunReplacement.evaluate(options),reward=BellOptimizer.BELL_REWARDS[selectedIndex],model=BellOptimizer.bellRunViewModel.build({forecast:forecast,replacement:replacement,reward:reward,formatter:BellOptimizer.idleonNumberFormat.format});
+      var forecast=BellOptimizer.bellRunForecast.evaluateBellRunForecast(options),replacement=BellOptimizer.bellRunReplacement.evaluate(options),reward=BellOptimizer.BELL_REWARDS[selectedIndex],model=BellOptimizer.bellRunViewModel.build({forecast:forecast,replacement:replacement,renewalBudget:BellOptimizer.bellRenewalBudget.evaluate(options),reward:reward,formatter:BellOptimizer.idleonNumberFormat.format});
       if(!model||!model.ok)throw new Error(model&&model.message?model.message:"The Run forecast could not be prepared.");
     }
     var breakdown=BellOptimizer.bellRateSection.buildBreakdown(data);
@@ -1179,6 +1204,9 @@ BellOptimizer.userInterface = (function () {
   document.querySelector("#run-advanced-renewal").addEventListener("click", requestAdvancedRenewalDecision);
   document.querySelector("#apply-future-ring-rate").addEventListener("click",applyRunRateScenario);
   document.querySelector("#clear-future-ring-rate").addEventListener("click",clearRunRateScenario);
+  document.querySelector("#apply-planned-rerolls").addEventListener("click",applyPlannedRerolls);
+  document.querySelector("#clear-planned-rerolls").addEventListener("click",clearPlannedRerolls);
+  document.querySelector("#planned-rerolls").addEventListener("keydown",function(event){if(event.key==="Enter"){event.preventDefault();applyPlannedRerolls();}});
   document.querySelector("#future-ring-rate").addEventListener("keydown",function(event){if(event.key==="Enter"){event.preventDefault();applyRunRateScenario();}});
   document.querySelectorAll(".goal-preset[data-reward-index]").forEach(function (button) { button.addEventListener("click", function () { selectGoal(button); }); });
   selectGoal(document.querySelector('.goal-preset[data-reward-index="6"]'));

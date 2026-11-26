@@ -47,6 +47,21 @@ BellOptimizer.bellRunViewModel=(function(){
     }
     return {ok:true,decision:result.decision,headline:copy[0],confidenceLabel:copy[1],reason:rationaleDetail,rationaleKind:rationaleKind,rationaleLabel:rationaleLabel,rationaleMetric:rationaleMetric,currentExpectedValue:result.currentRun.expectedEndingLevel,freshExpectedValue:result.freshReplacement.expectedEndingLevel,currentExpected:format(result.currentRun.expectedEndingLevel),currentRange:format(result.currentRun.likelyRange.p25)+"–"+format(result.currentRun.likelyRange.p75),freshExpected:format(result.freshReplacement.expectedEndingLevel),freshRange:format(result.freshReplacement.likelyRange.p25)+"–"+format(result.freshReplacement.likelyRange.p75),outcomeSummary:ordinarySummary,calculationMode:result.comparison.calculationMode+(result.comparison.approximate?" · approximate":""),affordableNow:result.renewal.affordableNow,assumption:"No future Lantern"};
   }
-  function build(input){var model=buildForecast(input);if(model.ok)model.replacement=replacementPresentation(input&&input.replacement,input&&input.formatter||String);return model;}
-  return {TIER_LABELS:TIER_LABELS,build:build,tierPresentation:tierPresentation,replacementPresentation:replacementPresentation,playerCalculationMode:playerCalculationMode};
+  // When the reset-aware bar is available it decides the verdict: the keep bar
+  // rises with the number of re-rolls the player plans to make.
+  function topShare(value){if(!finite(value))return "—";if(value<0.001)return "fewer than 1 in 1,000";return "the top "+percent(value);}
+  function budgetPresentation(base,budget,format,rewardName){
+    if(!base||!base.ok||!budget||!budget.ok)return base;
+    var copy={KEEP:["KEEP THIS RUN","Well above your keep bar"],KEEP_FAVORED:["KEEP IS FAVORED","Above your keep bar"],TOO_CLOSE:["TOO CLOSE TO CALL","Right at your keep bar"],RENEW_FAVORED:["RENEW IS FAVORED","Below your keep bar"],RENEW:["RENEW NOW","Well below your keep bar"]}[budget.decision];
+    if(!copy)return base;
+    var count=budget.rerollsPlanned,plural=count===1?"re-roll":"re-rolls",banked=budget.renewalsBankedNow,bar=format(budget.keepBar),current=format(budget.currentExpectedFinish),reward=rewardName||"this reward";
+    var reason="Keep bar with "+count.toLocaleString()+" "+plural+": "+bar+" on "+reward+(count===1?" (an average fresh run).":" ("+topShare(budget.keepBarTopShare)+" of fresh runs).")+" This run: "+current+" expected.",confidence=copy[1];
+    if(budget.rerollsSource==="DEFAULT_CAP")reason+=" Default plan; "+banked.toLocaleString()+" Renewals banked.";
+    if(banked<1)reason+=" No Renewal banked yet.";
+    if(budget.earlyPhase){confidence=budget.decision==="TOO_CLOSE"?"Too early to judge":confidence;reason+=" Too early to judge: check again around ring "+budget.checkHumanRingNumber.toLocaleString()+".";}
+    if(budget.decision.indexOf("RENEW")===0&&!budget.affordableNow)reason+=" Need "+format(budget.renewalCurrencyNeeded)+" more Renewal currency to Renew.";
+    return Object.assign({},base,{decision:budget.decision,headline:copy[0],confidenceLabel:confidence,reason:reason,rationaleKind:"keep_bar",rationaleLabel:"Keep bar · "+count.toLocaleString()+" "+plural,rationaleMetric:bar,affordableNow:budget.affordableNow,assumption:"Each re-roll is judged about "+budget.checkHours+" hours in.",keepBar:budget.keepBar,keepBarDisplay:bar,rerollsPlanned:count,rerollsSource:budget.rerollsSource,defaultRerolls:budget.defaultRerolls,renewalsBankedNow:banked,resetAware:true});
+  }
+  function build(input){var model=buildForecast(input);if(model.ok)model.replacement=budgetPresentation(replacementPresentation(input&&input.replacement,input&&input.formatter||String),input&&input.renewalBudget,input&&input.formatter||String,model.rewardName);return model;}
+  return {TIER_LABELS:TIER_LABELS,build:build,tierPresentation:tierPresentation,replacementPresentation:replacementPresentation,budgetPresentation:budgetPresentation,playerCalculationMode:playerCalculationMode};
 }());
